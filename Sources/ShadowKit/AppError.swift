@@ -21,6 +21,12 @@ public enum AppLog {
         append("ERROR \(context): \(detail)")
     }
 
+    /// Writes an already-built line (for example from `SpeechLog`) without reflecting the error again.
+    static func record(error line: String) {
+        logger.error("\(line, privacy: .public)")
+        append("ERROR \(line)")
+    }
+
     public static func info(_ line: String) { logger.info("\(line, privacy: .public)"); append("INFO \(line)") }
 
     private static func append(_ line: String) {
