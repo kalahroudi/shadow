@@ -44,23 +44,30 @@ final class FakeAudioSource: AudioSource, @unchecked Sendable {
 final class FakeSTTProvider: STTProvider, @unchecked Sendable {
     private let scripts: [Speaker: [Segment]]
     private let prepareError: Error?
+    private let failures: [Speaker: (afterSegments: Int, error: Error)]
     private let lock = NSLock()
     private(set) var preparedLocales: [Locale] = []
 
-    init(scripts: [Speaker: [Segment]], prepareError: Error? = nil) { self.scripts = scripts; self.prepareError = prepareError }
+    /// `failures`: after yielding that many segments for the speaker, the stream throws the error (and stops reading its source).
+    init(scripts: [Speaker: [Segment]], prepareError: Error? = nil, failures: [Speaker: (afterSegments: Int, error: Error)] = [:]) {
+        self.scripts = scripts; self.prepareError = prepareError; self.failures = failures
+    }
 
     func prepare(locale: Locale) async throws {
         lock.withLock { preparedLocales.append(locale) }
         if let prepareError { throw prepareError }
     }
 
-    func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncStream<Segment> {
+    func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncThrowingStream<Segment, Error> {
         let script = scripts[speaker] ?? []
-        return AsyncStream { continuation in
+        let failure = failures[speaker]
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 var i = 0
+                if let failure, failure.afterSegments == 0 { continuation.finish(throwing: failure.error); return }
                 for await _ in source {
                     if i < script.count { continuation.yield(script[i]); i += 1 }
+                    if let failure, i >= failure.afterSegments { continuation.finish(throwing: failure.error); return }
                 }
                 continuation.finish()
             }

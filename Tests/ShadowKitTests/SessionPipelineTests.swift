@@ -6,6 +6,11 @@ final class SessionPipelineTests: XCTestCase {
     private func seg(_ s: Speaker, _ t: String, _ start: Double, final: Bool) -> Segment {
         Segment(speaker: s, text: t, start: start, end: start + 1, locale: "en-US", confidence: 0.9, isFinal: final)
     }
+    private func collectAll(_ stream: AsyncThrowingStream<Segment, Error>) async -> ([Segment], Error?) {
+        var out: [Segment] = []
+        do { for try await s in stream { out.append(s) } } catch { return (out, error) }
+        return (out, nil)
+    }
     private func collect<T: Sendable>(_ stream: AsyncStream<T>, count: Int) async -> [T] {
         var out: [T] = []
         var it = stream.makeAsyncIterator()
@@ -30,9 +35,51 @@ final class SessionPipelineTests: XCTestCase {
         let stt = FakeSTTProvider(scripts: [.them: script])
         let (src, cont) = AsyncStream<TimedBuffer>.makeStream()
         cont.yield(TimedBuffer(buffer: makeBuffer(0.1), time: 0)); cont.yield(TimedBuffer(buffer: makeBuffer(0.1), time: 1)); cont.finish()
-        let got = await collect(stt.transcribe(src, speaker: .them, locale: Locale(identifier: "en-US")), count: 2)
+        let (got, error) = await collectAll(stt.transcribe(src, speaker: .them, locale: Locale(identifier: "en-US")))
+        XCTAssertNil(error)
         XCTAssertEqual(got, script)
         XCTAssertEqual(got[1].speaker, .them); XCTAssertEqual(got[1].locale, "en-US"); XCTAssertEqual(got[1].confidence, 0.9)
+    }
+
+    func testFakeProviderThrowsMidStream() async {
+        struct Boom: Error {}
+        let stt = FakeSTTProvider(scripts: [.them: [seg(.them, "a", 0, final: true), seg(.them, "b", 1, final: true)]],
+                                  failures: [.them: (1, Boom())])
+        let (src, cont) = AsyncStream<TimedBuffer>.makeStream()
+        cont.yield(TimedBuffer(buffer: makeBuffer(0.1), time: 0)); cont.yield(TimedBuffer(buffer: makeBuffer(0.1), time: 1)); cont.finish()
+        let (got, error) = await collectAll(stt.transcribe(src, speaker: .them, locale: Locale(identifier: "en-US")))
+        XCTAssertEqual(got.map(\.text), ["a"])
+        XCTAssertTrue(error is Boom)
+    }
+
+    // One stream's recogniser dies mid-session: a friendly notice, the other stream keeps transcribing, nothing already heard is lost.
+    func testRecognizerFailureRaisesNoticeAndKeepsOtherStream() async throws {
+        let dir = tmp(); defer { try? FileManager.default.removeItem(at: dir) }
+        let store = SessionStore(directory: dir)
+        let them = FakeAudioSource(script: [(0.1, 0.5), (0.5, 0.5), (0.9, 0.5)])
+        let you = FakeAudioSource(script: [(0.3, 0.25), (0.8, 0.25)])
+        let stt = FakeSTTProvider(scripts: [
+            .them: [seg(.them, "before the failure", 0.1, final: true), seg(.them, "never heard", 0.5, final: true)],
+            .you: [seg(.you, "hi", 0.3, final: true), seg(.you, "still here", 0.8, final: true)],
+        ], failures: [.them: (1, UserFacingError("The speech engine stopped."))])
+        let controller = SessionController(them: them, you: you, stt: stt, store: store)
+        let notices = await controller.notices()
+        try await controller.start(locale: Locale(identifier: "en-US"))
+
+        var it = notices.makeAsyncIterator()
+        let first = await it.next()
+        let notice = try XCTUnwrap(first)
+        XCTAssertTrue(notice.contains("Them"))
+        XCTAssertTrue(notice.contains("The speech engine stopped."))
+        XCTAssertTrue(notice.contains("still capturing You"))
+        let running = await controller.isRunning
+        XCTAssertTrue(running)
+
+        let record = try await controller.stop()
+        let saved = try XCTUnwrap(record)
+        XCTAssertEqual(saved.segments.filter { $0.speaker == .them }.map(\.text), ["before the failure"])
+        XCTAssertEqual(saved.segments.filter { $0.speaker == .you }.map(\.text), ["hi", "still here"])
+        XCTAssertEqual(you.stopCount, 1); XCTAssertEqual(them.stopCount, 1)
     }
 
     // A21 + A23: Start -> partials -> finals -> Stop -> file, with fakes only.

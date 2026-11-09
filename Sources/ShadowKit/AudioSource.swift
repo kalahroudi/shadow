@@ -30,6 +30,8 @@ extension SessionClock {
     /// Session time of a buffer stamped on the host clock, given the host clock's reading and the wall clock at the same moment.
     /// Both real sources use this, so Them and You are measured against the one session start (R5).
     public func time(hostSeconds: TimeInterval, hostNow: TimeInterval, now: Date = Date()) -> TimeInterval {
-        time(at: now) - (hostNow - hostSeconds)
+        // An invalid stamp (NaN from an invalid CMTime) reads as "now" rather than poisoning the transcript timeline.
+        guard hostSeconds.isFinite, hostNow.isFinite else { return time(at: now) }
+        return time(at: now) - (hostNow - hostSeconds)
     }
 }

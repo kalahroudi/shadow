@@ -8,5 +8,7 @@ public protocol STTProvider: Sendable {
     /// Throws a `UserFacingError` when it cannot, so the session never starts half-working.
     func prepare(locale: Locale) async throws
     /// Consumes one stream and yields partial and final segments. Finishes after the source stream ends and its last words are final.
-    func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncStream<Segment>
+    /// If recognition fails mid-session the stream finishes by throwing (a `UserFacingError` when the message is user-ready) and stops
+    /// reading `source`; the other speaker's stream is independent and unaffected.
+    func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncThrowingStream<Segment, Error>
 }

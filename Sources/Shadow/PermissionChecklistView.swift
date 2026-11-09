@@ -7,6 +7,8 @@ import ShadowKit
 /// The "fix your permissions" checklist (R7). Used by onboarding and, later, by the Start path.
 struct PermissionChecklistView: View {
     let checker: PermissionChecker
+    /// Called after every re-read, so the owner can drop the checklist once everything is granted.
+    var onRefresh: (() -> Void)?
     @State private var items: [ChecklistItem] = []
     @State private var copied: PermissionKind?
 
@@ -20,7 +22,7 @@ struct PermissionChecklistView: View {
         .onAppear { refresh() }
     }
 
-    private func refresh() { items = Checklist.items(using: checker) }
+    private func refresh() { items = Checklist.items(using: checker); onRefresh?() }
 
     @ViewBuilder private func row(_ kind: PermissionKind) -> some View {
         if let item = items.first(where: { $0.kind == kind }) {

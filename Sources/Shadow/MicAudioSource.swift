@@ -17,6 +17,9 @@ final class MicAudioSource: AudioSource, @unchecked Sendable {
 
     func start(clock: SessionClock) async throws -> AsyncStream<TimedBuffer> {
         await stop()
+        guard await AVAudioApplication.requestRecordPermission() else {
+            throw UserFacingError("Shadow needs Microphone access. Allow it in System Settings > Privacy & Security > Microphone.")
+        }
         let engine = AVAudioEngine()
         let input = engine.inputNode
         if let uid = deviceUID(), let id = Self.deviceID(forUID: uid), let unit = input.audioUnit {

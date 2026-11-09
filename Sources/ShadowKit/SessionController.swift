@@ -19,9 +19,11 @@ public actor SessionController {
     private let now: @Sendable () -> Date
 
     private var session: SessionRecord?
+    private var stopping = false
     private var tasks: [Task<Void, Never>] = []
     private var levels = Levels()
     private var observers: [UUID: AsyncStream<Levels>.Continuation] = [:]
+    private var noticeObservers: [UUID: AsyncStream<String>.Continuation] = [:]
 
     public init(them: any AudioSource, you: any AudioSource, stt: any STTProvider, store: SessionStore,
                 transcript: Transcript = Transcript(), now: @escaping @Sendable () -> Date = { Date() }) {
@@ -41,6 +43,16 @@ public actor SessionController {
         return stream
     }
 
+    /// Friendly one-line notices raised while a session runs (for example one stream's speech recognition failing).
+    /// Subscribe before `start`; notices are not replayed.
+    public func notices() -> AsyncStream<String> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<String>.makeStream(bufferingPolicy: .bufferingNewest(8))
+        noticeObservers[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { await self?.removeNoticeObserver(id) } }
+        return stream
+    }
+
     /// Prepares STT first (so a failure starts nothing), then starts both streams on one clock.
     @discardableResult
     public func start(locale: Locale) async throws -> UUID {
@@ -57,6 +69,7 @@ public actor SessionController {
         do { youBuffers = try await you.start(clock: clock) } catch { await them.stop(); store.end(); throw error }
 
         session = record
+        stopping = false
         levels = Levels()
         await transcript.reset()
         tasks = [run(themBuffers, speaker: .them, locale: locale), run(youBuffers, speaker: .you, locale: locale)].flatMap { $0 }
@@ -68,6 +81,7 @@ public actor SessionController {
     @discardableResult
     public func stop() async throws -> SessionRecord? {
         guard var record = session else { return nil }
+        stopping = true   // from here a source ending is expected, not a failure
         await them.stop()
         await you.stop()
         for task in tasks { await task.value }
@@ -90,17 +104,24 @@ public actor SessionController {
     private func run(_ buffers: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> [Task<Void, Never>] {
         let (forSTT, out) = AsyncStream<TimedBuffer>.makeStream()
         let pump = Task {
+            var sttAlive = true
             for await item in buffers {
                 self.setLevel(LevelMeter.level(of: item.buffer), for: speaker)
-                out.yield(item)
+                // Once the recogniser has failed nobody reads `out`; stop feeding it so audio doesn't pile up. The meter keeps going.
+                if sttAlive, case .terminated = out.yield(item) { sttAlive = false }
             }
             out.finish()
+            await self.sourceEnded(speaker)
         }
         let segments = stt.transcribe(forSTT, speaker: speaker, locale: locale)
         let consume = Task {
-            for await segment in segments {
-                await self.transcript.add(segment)
-                if segment.isFinal { await self.checkpoint() }
+            do {
+                for try await segment in segments {
+                    await self.transcript.add(segment)
+                    if segment.isFinal { await self.checkpoint() }
+                }
+            } catch {
+                await self.speechFailed(speaker, error)
             }
         }
         return [pump, consume]
@@ -113,6 +134,26 @@ public actor SessionController {
         do { try store.write(record) } catch { AppLog.error(error, context: "checkpoint session") }
     }
 
+    /// One stream's recogniser died: tell the user, keep the other stream and everything transcribed so far.
+    private func speechFailed(_ speaker: Speaker, _ error: Error) {
+        AppLog.error(error, context: "speech recognition for \(speaker.rawValue)")
+        guard session != nil else { return }
+        let who = speaker == .them ? "Them" : "You"
+        let other = speaker == .them ? "You" : "Them"
+        let detail = (error as? UserFacingError)?.message
+        let message = "Speech recognition stopped for \(who)\(detail.map { ": \($0)" } ?? ""). Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
+        for c in noticeObservers.values { c.yield(message) }
+    }
+
+    /// A capture stream ended while the session is still running (the device vanished or the system stopped it).
+    private func sourceEnded(_ speaker: Speaker) {
+        guard session != nil, !stopping else { return }
+        AppLog.info("audio source ended mid-session: \(speaker.rawValue)")
+        let who = speaker == .them ? "system audio (Them)" : "the microphone (You)"
+        let message = "Shadow lost \(who). Stop and start a new session to capture it again; what was captured so far is kept."
+        for c in noticeObservers.values { c.yield(message) }
+    }
+
     private func setLevel(_ value: Float, for speaker: Speaker) {
         guard session != nil else { return }
         if speaker == .them { levels.them = value } else { levels.you = value }
@@ -120,5 +161,6 @@ public actor SessionController {
     }
 
     private func publish() { for c in observers.values { c.yield(levels) } }
+    private func removeNoticeObserver(_ id: UUID) { noticeObservers[id] = nil }
     private func removeObserver(_ id: UUID) { observers[id] = nil }
 }

@@ -25,6 +25,32 @@ final class Prefs {
     /// First-run flag: onboarding shows until this is set.
     var onboardingCompleted: Bool { didSet { d.set(onboardingCompleted, forKey: PrefsDefaults.onboardingCompleted) } }
 
+    /// Popover choices (R17). They take effect immediately. Persona is UI only in milestone 1.
+    var persona: Persona { didSet { d.set(persona.rawValue, forKey: "persona") } }
+    var language: Language { didSet { d.set(language.rawValue, forKey: "language") } }
+    var overlayVisible: Bool { didSet { d.set(overlayVisible, forKey: "overlayVisible") } }
+    var overlayCompact: Bool { didSet { d.set(overlayCompact, forKey: "overlayCompact") } }
+
+    /// Global shortcuts, one string per action; invalid or conflicting values fall back to the defaults (R18).
+    var hotkeys: HotkeyMap { HotkeyMap.stored { self.d.string(forKey: "hotkey.\($0.rawValue)") } }
+    /// Rebinds without a relaunch. If macOS refuses any shortcut nothing is saved, the previous shortcuts stay live
+    /// and the refused actions are returned.
+    @discardableResult
+    func setHotkeys(_ map: HotkeyMap) -> [HotkeyAction: UserFacingError] {
+        let previous = hotkeys
+        let failed = HotkeyCenter.shared.register(map)
+        guard failed.isEmpty else { HotkeyCenter.shared.register(previous); return failed }
+        for (action, key) in map { d.set(key.string, forKey: "hotkey.\(action.rawValue)") }
+        return [:]
+    }
+
+    /// The microphone for the You stream: the Core Audio device UID stored under "micDeviceID" (the key #8's Settings picker writes),
+    /// or nil for the system default (an empty or missing value). Read when a session starts.
+    nonisolated static func micDeviceUIDForStart() -> String? {
+        let uid = UserDefaults.standard.string(forKey: "micDeviceID")
+        return uid?.isEmpty == false ? uid : nil
+    }
+
     private(set) var launchAtLogin: Bool = false
     private(set) var launchAtLoginError: String?
 
@@ -32,6 +58,10 @@ final class Prefs {
         PrefsDefaults.register(in: d)
         remindBeforeSession = d.bool(forKey: PrefsDefaults.remindBeforeSession)
         onboardingCompleted = d.bool(forKey: PrefsDefaults.onboardingCompleted)
+        persona = Persona(rawValue: d.string(forKey: "persona") ?? "") ?? .default
+        language = Language(rawValue: d.string(forKey: "language") ?? "") ?? .auto
+        overlayVisible = d.object(forKey: "overlayVisible") as? Bool ?? true
+        overlayCompact = d.object(forKey: "overlayCompact") as? Bool ?? true
         theme = ThemeChoice(rawValue: d.string(forKey: "theme") ?? "") ?? .system
         showDockIcon = d.bool(forKey: "showDockIcon")
         // First run: opt in to launch at login. After that the user's choice always wins.
