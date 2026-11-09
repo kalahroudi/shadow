@@ -140,3 +140,23 @@ struct SeededRNG: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 { state = state &* 6364136223846793005 &+ 1442695040888963407; return state ^ (state >> 29) }
 }
+
+final class InMemorySecretStore: SecretStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [String: String] = [:]
+    var all: [String: String] { lock.withLock { items } }
+    func get(account: String) throws -> String? { lock.withLock { items[account] } }
+    func set(_ secret: String, account: String) throws { lock.withLock { items[account] = secret } }
+    func delete(account: String) throws { lock.withLock { items[account] = nil } }
+}
+
+/// Key-shaped dummies built at run time, so no key-like literal sits in the source. None is a real credential.
+enum FakeKeys {
+    private static func filler(_ n: Int, _ c: Character = "x") -> String { String(repeating: c, count: n) }
+    static let anthropic = ["sk", "ant", "api03", filler(28)].joined(separator: "-")
+    static let openAI = ["sk", "proj", filler(24)].joined(separator: "-")
+    static let gemini = "AI" + "za" + "Sy" + filler(33, "y")
+    /// A distinctive marker used to prove a stored key does not leak elsewhere.
+    static let marker = "UNIQUEKEYVALUE"
+    static let anthropicWithMarker = ["sk", "ant", "api03", marker + filler(10)].joined(separator: "-")
+}
