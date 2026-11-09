@@ -26,6 +26,35 @@ final class PackageTests: XCTestCase {
         XCTAssertTrue(script.contains("<string>26.0</string>"))
     }
 
+    func testUsageDescriptionsHaveNonEmptyStrings() throws {
+        let script = try repoFile("scripts/bundle.sh")
+        for key in ["NSMicrophoneUsageDescription", "NSAudioCaptureUsageDescription", "NSScreenCaptureUsageDescription"] {
+            let marker = "<key>\(key)</key>"
+            let range = try XCTUnwrap(script.range(of: marker), key)
+            let rest = script[range.upperBound...].drop(while: { $0.isWhitespace })
+            XCTAssertTrue(rest.hasPrefix("<string>"), "\(key) must be followed by a <string>")
+            let value = rest.dropFirst("<string>".count)
+            let end = try XCTUnwrap(value.range(of: "</string>"), key)
+            XCTAssertFalse(value[..<end.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "\(key) must not be empty")
+        }
+    }
+
+    func testResetScriptIsGuardedAndScopedToShadow() throws {
+        let script = try repoFile("scripts/reset-permissions.sh")
+        XCTAssertTrue(script.contains("BUNDLE_ID=\"com.kalahroudi.shadow\""))
+        XCTAssertTrue(script.contains("[y/N]"))
+        XCTAssertTrue(script.contains("$BUNDLE_ID? [y/N]"), "prompt names the bundle id")
+        XCTAssertTrue(script.contains("[ ! -t 0 ]"), "refuses without a terminal")
+        let commands = script.split(separator: "\n").filter { $0.hasPrefix("tccutil") }
+        XCTAssertFalse(commands.isEmpty)
+        for line in commands {
+            XCTAssertTrue(line.hasSuffix("\"$BUNDLE_ID\""), "tccutil must target the bundle id: \(line)")
+            XCTAssertFalse(line.contains("All"), "never reset all services")
+        }
+        XCTAssertFalse(script.contains("reset All"))
+        XCTAssertEqual(script.components(separatedBy: "com.").count - 1, 1, "only one bundle id appears")
+    }
+
     func testCIBuildsTestsBundlesAndSelfTests() throws {
         let ci = try repoFile(".github/workflows/ci.yml")
         XCTAssertTrue(ci.contains("runs-on: macos-26"))
