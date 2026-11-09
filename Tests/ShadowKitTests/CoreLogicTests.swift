@@ -138,3 +138,21 @@ final class CoreLogicTests: XCTestCase {
         if case .failure = d.binding(.toggleOverlay, to: "cmd+shift+h") { XCTFail("own binding rejected") }
     }
 }
+
+final class HostClockTests: XCTestCase {
+    func testHostStampedBufferMapsToSessionTime() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let clock = SessionClock(start: start)
+        // Stamped 0.5 s before "now", which is 10 s into the session.
+        let t = clock.time(hostSeconds: 99.5, hostNow: 100, now: start.addingTimeInterval(10))
+        XCTAssertEqual(t, 9.5, accuracy: 1e-9)
+    }
+
+    func testTwoSourcesShareTheSameOrigin() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let clock = SessionClock(start: start)
+        let now = start.addingTimeInterval(4)
+        XCTAssertEqual(clock.time(hostSeconds: 50, hostNow: 50, now: now), 4)
+        XCTAssertEqual(clock.time(hostSeconds: 49, hostNow: 50, now: now), 3)
+    }
+}

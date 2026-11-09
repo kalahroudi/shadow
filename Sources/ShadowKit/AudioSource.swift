@@ -25,3 +25,11 @@ public protocol AudioSource: Sendable {
     /// Stops capture and releases the device. Safe to call when not started.
     func stop() async
 }
+
+extension SessionClock {
+    /// Session time of a buffer stamped on the host clock, given the host clock's reading and the wall clock at the same moment.
+    /// Both real sources use this, so Them and You are measured against the one session start (R5).
+    public func time(hostSeconds: TimeInterval, hostNow: TimeInterval, now: Date = Date()) -> TimeInterval {
+        time(at: now) - (hostNow - hostSeconds)
+    }
+}
