@@ -253,6 +253,30 @@ final class PackageTests: XCTestCase {
         XCTAssertFalse(try repoFile(".github/workflows/ci.yml").contains("secrets."))
     }
 
+    /// Fork PRs must never reach secrets: CI has read-only permissions and no pull_request_target; release runs only on tags/dispatch.
+    func testWorkflowTriggersAndPermissionsAreLeastPrivilege() throws {
+        let ci = try repoFile(".github/workflows/ci.yml")
+        XCTAssertTrue(ci.contains("contents: read"))
+        XCTAssertFalse(ci.contains("pull_request_target"))
+        XCTAssertFalse(ci.contains("contents: write"))
+        let rel = try repoFile(".github/workflows/release.yml")
+        XCTAssertFalse(rel.contains("pull_request"))
+        XCTAssertTrue(rel.contains("^v(0|[1-9][0-9]*)"), "tag is validated as semver")
+        // The keychain cleanup comes after the import step and always runs.
+        let steps = rel.components(separatedBy: "\n      - ")
+        let importIdx = try XCTUnwrap(steps.firstIndex { $0.hasPrefix("name: Import signing certificate") })
+        let cleanIdx = try XCTUnwrap(steps.firstIndex { $0.hasPrefix("name: Remove signing keychain") })
+        XCTAssertGreaterThan(cleanIdx, importIdx)
+        XCTAssertTrue(steps[cleanIdx].contains("if: always()"))
+    }
+
+    func testReadmeHasNoStaleSigningWording() throws {
+        let readme = try repoFile("README.md")
+        XCTAssertFalse(readme.contains("SIGN_IDENTITY"), "stale pre-SIGNING_IDENTITY name")
+        XCTAssertFalse(readme.contains("planned follow-ups.") && readme.contains("signing releases with the self-signed identity are planned"))
+        XCTAssertTrue(readme.contains("scripts/reset-permissions.sh"))
+    }
+
     func testCIRunsDRCheckAndSigningShellTest() throws {
         let ci = try repoFile(".github/workflows/ci.yml")
         XCTAssertTrue(ci.contains("check-signing.sh --adhoc-fallback"))
