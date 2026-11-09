@@ -37,6 +37,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         OverlayController.shared.refresh()
         if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }
+        finishUpdateHandoff(model)
+    }
+
+    /// Clears leftovers of a self-update, shows the outcome once, and tells the swap script this build started (R12, R13).
+    private func finishUpdateHandoff(_ model: AppModel) {
+        let paths = AppPaths()
+        if let notice = UpdateHandoff.cleanup(paths: paths, currentVersion: BuildInfo.current.version) { model.session.showNotice(notice.text) }
+        Task { await UpdateHandoff.confirmLaunch(paths: paths, isAlive: { true }) }   // one-shot; a quit ends the task before it writes
     }
 
     /// The popover does not follow NSApp.appearance on its own (it takes the menu bar's look), so set it explicitly.
