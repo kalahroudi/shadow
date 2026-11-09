@@ -9,21 +9,6 @@ public enum GlyphState: Sendable, Equatable {
     public static func from(sessionRunning: Bool) -> GlyphState { sessionRunning ? .recording : .idle }
 }
 
-/// The persona choices in the popover. UI only in milestone 1: nothing reads the value yet (R17).
-public enum Persona: String, CaseIterable, Sendable, Codable {
-    case interview, sales, coding, meetingNotes
-
-    public static let `default` = Persona.interview
-    public var label: String {
-        switch self {
-        case .interview: "Interview"
-        case .sales: "Sales"
-        case .coding: "Coding"
-        case .meetingNotes: "Meeting notes"
-        }
-    }
-}
-
 extension Dictionary where Key == HotkeyAction, Value == Hotkey {
     /// Reads one string per action; a missing, invalid or conflicting entry falls back to the default, so a bad value never unbinds an action.
     public static func stored(_ read: (HotkeyAction) -> String?) -> HotkeyMap {

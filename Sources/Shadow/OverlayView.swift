@@ -37,7 +37,7 @@ struct LiveOverlayView: View {
             content: OverlayContent(
                 state: .from(sessionRunning: model.isRunning), compact: prefs.overlayCompact, lines: model.transcript.lines,
                 levels: model.levels, opacity: prefs.overlayOpacity, clickThrough: model.clickThrough,
-                persona: prefs.persona.label, sessionStart: model.sessionStart,
+                persona: prefs.personas.active.name, sessionStart: model.sessionStart,
                 startHotkey: prefs.hotkeys[.toggleSession]?.display ?? "",
                 clickThroughHotkey: prefs.hotkeys[.toggleClickThrough]?.display ?? ""),
             actions: OverlayActions(

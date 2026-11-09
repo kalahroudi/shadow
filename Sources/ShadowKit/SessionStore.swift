@@ -2,17 +2,41 @@
 
 import Foundation
 
-/// One saved session: the full transcript plus when it ran (R21). `version` lets later milestones migrate the format.
+/// One answer shown during a session (R20). Text only: the question, the answer and which provider made it; never a key.
+public struct AnswerRecord: Codable, Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var createdAt: Date
+    public var question: String
+    public var text: String
+    public var persona: String
+    public var provider: String
+    public var model: String
+    /// How it was made: "answer", "shorter", "metric", "followUp" or "language".
+    public var kind: String
+    public var latencyMs: Int?
+
+    public init(id: UUID = UUID(), createdAt: Date = Date(), question: String, text: String, persona: String,
+                provider: String, model: String, kind: String = "answer", latencyMs: Int? = nil) {
+        self.id = id; self.createdAt = createdAt; self.question = question; self.text = text; self.persona = persona
+        self.provider = provider; self.model = model; self.kind = kind; self.latencyMs = latencyMs
+    }
+}
+
+/// One saved session: the full transcript plus when it ran (R21). `version` lets later milestones migrate the format (2 adds answer history).
 public struct SessionRecord: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
     public var version: Int
     public var id: UUID
     public var startedAt: Date
     public var endedAt: Date?
     public var segments: [Segment]
+    /// Added in version 2. Absent in v1 files, which still load.
+    public var answers: [AnswerRecord]?
 
-    public init(id: UUID, startedAt: Date, endedAt: Date? = nil, segments: [Segment] = [], version: Int = SessionRecord.currentVersion) {
+    public init(id: UUID, startedAt: Date, endedAt: Date? = nil, segments: [Segment] = [], answers: [AnswerRecord]? = nil,
+                version: Int = SessionRecord.currentVersion) {
         self.version = version; self.id = id; self.startedAt = startedAt; self.endedAt = endedAt; self.segments = segments
+        self.answers = answers
     }
 }
 
