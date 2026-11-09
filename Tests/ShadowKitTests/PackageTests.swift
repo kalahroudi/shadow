@@ -39,6 +39,15 @@ final class PackageTests: XCTestCase {
         }
     }
 
+    func testPermissionsDocRecordsAudioCaptureDecision() throws {
+        let doc = try repoFile("docs/permissions.md")
+        for needle in ["kTCCServiceAudioCapture", "Decision: is kTCCServiceAudioCapture needed?", "ad-hoc", "Self-signed",
+                       "CGRequestScreenCaptureAccess", "SCShareableContent", "SCStream", "AVCaptureDevice.requestAccess",
+                       "process tap", "scripts/reset-permissions.sh"] {
+            XCTAssertTrue(doc.localizedCaseInsensitiveContains(needle), "docs/permissions.md is missing \(needle)")
+        }
+    }
+
     func testResetScriptIsGuardedAndScopedToShadow() throws {
         let script = try repoFile("scripts/reset-permissions.sh")
         XCTAssertTrue(script.contains("BUNDLE_ID=\"com.kalahroudi.shadow\""))
