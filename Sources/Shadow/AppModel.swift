@@ -93,6 +93,15 @@ final class AppModel {
         session.showNotice(text)
     }
 
+    /// Tells the user once per new shortcut when Answer now moved off its default because a saved shortcut owns it.
+    func reportAnswerNowMove() {
+        let d = UserDefaults.standard, key = "answerNowMoveNoticed"
+        guard let move = HotkeyMap.storedResolvingAnswerNow({ d.string(forKey: "hotkey.\($0.rawValue)") }).move,
+              d.string(forKey: key) != move.moved.string else { return }
+        d.set(move.moved.string, forKey: key)
+        session.showNotice(move.message)
+    }
+
     /// The reminder before each session (R20). Capture begins only after the user confirms.
     private static func confirmReminder() -> Bool {
         let alert = NSAlert()
