@@ -49,6 +49,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             Updater.shared.handoffText = notice.text
             model.session.showNotice(notice.text)
         }
+        if PermissionLossCheck.checkOnce(checker: model.checker, paths: paths) {   // once per update (R25)
+            model.session.recheckPermissions()   // opens the existing checklist
+            model.session.showNotice(PermissionLossCheck.message)
+            model.session.onNeedPopover?()
+        }
         Task { await Updater.shared.launchCheckIfDue() }   // once, only when due; no timer (R1, R3)
         Task { await UpdateHandoff.confirmLaunch(paths: paths, isAlive: { true }) }   // one-shot; a quit ends the task before it writes
     }
