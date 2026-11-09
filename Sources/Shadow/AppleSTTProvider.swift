@@ -49,19 +49,32 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         }
     }
 
-    func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncStream<Segment> {
-        AsyncStream { continuation in
+    func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncThrowingStream<Segment, Error> {
+        AsyncThrowingStream { continuation in
             let task = Task {
-                do { try await Self.run(source, speaker: speaker, locale: locale, into: continuation) }
-                catch { AppLog.error(error, context: "transcribe \(speaker.rawValue)") }
-                continuation.finish()
+                do {
+                    try await Self.run(source, speaker: speaker, locale: locale, into: continuation)
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    AppLog.error(error, context: "transcribe \(speaker.rawValue)")
+                    continuation.finish(throwing: error is UserFacingError ? error : UserFacingError("The speech recognizer hit an error."))
+                }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
     }
 
+    private final class Failure: @unchecked Sendable {
+        private let lock = NSLock()
+        private var error: Error?
+        func set(_ e: Error) { lock.withLock { if error == nil { error = e } } }
+        var value: Error? { lock.withLock { error } }
+    }
+
     private static func run(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale,
-                            into out: AsyncStream<Segment>.Continuation) async throws {
+                            into out: AsyncThrowingStream<Segment, Error>.Continuation) async throws {
         let resolved = await SpeechTranscriber.supportedLocale(equivalentTo: locale) ?? locale
         let transcriber = makeTranscriber(resolved)
         let analyzer = SpeechAnalyzer(modules: [transcriber])
@@ -70,19 +83,26 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         }
         let (inputs, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
         let localeID = resolved.identifier(.bcp47)
+        let failure = Failure()
 
         let results = Task {
-            for try await result in transcriber.results {
-                let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
-                let range = result.range
-                let confidence = result.text.runs.compactMap { $0.transcriptionConfidence }
-                out.yield(Segment(speaker: speaker, text: text,
-                                  start: range.start.seconds.isFinite ? range.start.seconds : 0,
-                                  end: range.end.seconds.isFinite ? range.end.seconds : 0,
-                                  locale: localeID,
-                                  confidence: confidence.isEmpty ? 1 : confidence.reduce(0, +) / Double(confidence.count),
-                                  isFinal: result.isFinal))
+            do {
+                for try await result in transcriber.results {
+                    let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { continue }
+                    let range = result.range
+                    let confidence = result.text.runs.compactMap { $0.transcriptionConfidence }
+                    out.yield(Segment(speaker: speaker, text: text,
+                                      start: range.start.seconds.isFinite ? range.start.seconds : 0,
+                                      end: range.end.seconds.isFinite ? range.end.seconds : 0,
+                                      locale: localeID,
+                                      confidence: confidence.isEmpty ? 1 : confidence.reduce(0, +) / Double(confidence.count),
+                                      isFinal: result.isFinal))
+                }
+            } catch {
+                // Surface it now, not when the source ends: close the input so the feed loop below stops.
+                failure.set(error)
+                inputContinuation.finish()
             }
         }
 
@@ -91,12 +111,14 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         try await analyzer.start(inputSequence: inputs)
         var converter: AVAudioConverter?
         for await item in source {
+            if failure.value != nil { break }
             guard let buffer = convert(item.buffer, to: target, using: &converter) else { continue }
             inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: item.time, preferredTimescale: 48_000)))
         }
         inputContinuation.finish()
-        try await analyzer.finalizeAndFinishThroughEndOfInput()
-        try await results.value
+        if failure.value == nil { try await analyzer.finalizeAndFinishThroughEndOfInput() }
+        await results.value
+        if let error = failure.value { throw error }
     }
 
     private static func convert(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat, using converter: inout AVAudioConverter?) -> AVAudioPCMBuffer? {
