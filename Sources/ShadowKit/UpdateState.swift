@@ -87,7 +87,7 @@ public enum UpdatesCopy {
         }
     }
 
-    /// The permissions line for the Updates pane (R16, R24). 
+    /// The permissions line for the Updates pane (R16, R24).
     public static func permissionsNote(_ note: UpdateDecision.Note) -> String {
         switch note {
         case .permissionsCarryOver: "Permissions will carry over"
