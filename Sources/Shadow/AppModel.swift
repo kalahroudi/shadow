@@ -44,6 +44,9 @@ final class AppModel {
             autoSuggest: { Prefs.shared.autoSuggest })
         let answers = self.answers
         session.onTranscript = { answers.transcriptChanged($0) }
+        let session = self.session
+        answers.onRecord = { session.recordAnswer($0) }
+        answers.onCopyableChange = { HotkeyCenter.shared.setCopyAnswerEnabled($0) }
         session.onRunningChange = { [weak self] running in
             if running { answers.sessionStarted() } else { answers.sessionStopped() }   // stopping cancels any in-flight answer (R10)
             self?.onRunningChange?(running)
@@ -79,6 +82,16 @@ final class AppModel {
         case .toggleClickThrough: clickThrough.toggle()
         case .toggleCompact: prefs.overlayCompact.toggle()
         case .answerNow: answers.answerNow()
+        case .copyAnswer: copyAnswer()
+        }
+    }
+
+    /// Puts the full answer text on the pasteboard (R18).
+    func copyAnswer() {
+        answers.copy { text in
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(text, forType: .string)
         }
     }
 

@@ -13,16 +13,28 @@ final class HotkeyCenter {
     private var refs: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
     var onAction: (@MainActor (HotkeyAction) -> Void)?
+    private var lastMap: HotkeyMap?
+    private var copyEnabled = false
+
+    /// ⌘⇧C is claimed only while an answer is on screen, so it never steals the shortcut system-wide (R18).
+    func setCopyAnswerEnabled(_ on: Bool) {
+        guard on != copyEnabled else { return }
+        copyEnabled = on
+        guard let lastMap else { return }
+        let failed = register(lastMap)
+        if on { AppModel.shared.reportHotkeyConflicts(failed.keys) }
+    }
 
     /// Replaces every registration. Returns one friendly message per action macOS refused (the shortcut is taken elsewhere).
     @discardableResult
     func register(_ map: HotkeyMap) -> [HotkeyAction: UserFacingError] {
         installHandlerIfNeeded()
+        lastMap = map
         refs.forEach { UnregisterEventHotKey($0) }
         refs = []
         var failed: [HotkeyAction: UserFacingError] = [:]
         for (index, action) in HotkeyAction.allCases.enumerated() {
-            guard let key = map[action] else { continue }
+            guard let key = map[action], action != .copyAnswer || copyEnabled else { continue }
             var ref: EventHotKeyRef?
             let status = RegisterEventHotKey(key.keyCode, Self.carbonModifiers(key.modifiers),
                                              EventHotKeyID(signature: Self.signature, id: UInt32(index)), GetApplicationEventTarget(), 0, &ref)

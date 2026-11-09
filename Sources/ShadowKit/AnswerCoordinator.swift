@@ -14,6 +14,14 @@ public struct Answer: Equatable, Sendable {
     public var latencyMs: Int?
     /// True when the answer hit the length cap and was cut off (R24).
     public var truncated = false
+    /// "answer", or the chip that made it: "shorter", "metric", "followUp", "language".
+    public var kind = "answer"
+
+    public init(question: String, text: String = "", isStreaming: Bool = true, provider: String, model: String, isCloud: Bool,
+                latencyMs: Int? = nil, truncated: Bool = false, kind: String = "answer") {
+        self.question = question; self.text = text; self.isStreaming = isStreaming; self.provider = provider; self.model = model
+        self.isCloud = isCloud; self.latencyMs = latencyMs; self.truncated = truncated; self.kind = kind
+    }
 }
 
 public enum AnswerState: Equatable, Sendable {
@@ -23,6 +31,13 @@ public enum AnswerState: Equatable, Sendable {
     case failed(String, partial: Answer?)
     /// The persona doesn't suggest answers (R16). `switchTo` is the persona id the user can switch to.
     case declined(String, switchTo: String)
+}
+
+extension AnswerState {
+    /// The persona the "switch persona" offer points at (R16).
+    public var switchTarget: String? { if case .declined(_, let id) = self { id } else { nil } }
+    /// True while the answer on screen came from a cloud provider.
+    public var isCloud: Bool { if case .answering(let a) = self { a.isCloud } else { false } }
 }
 
 public enum AnswerTrigger: Equatable, Sendable {
@@ -36,7 +51,14 @@ public final class AnswerCoordinator {
     public static let maxAnswerCharacters = 8_000
     public static let defaultDebounce = Duration.milliseconds(1_200)
 
-    public private(set) var state = AnswerState.idle
+    public private(set) var state = AnswerState.idle { didSet { copyableMayHaveChanged() } }
+    /// Answers made this session, newest last, with the back/forward cursor (R20).
+    public private(set) var history = AnswerHistory()
+    /// Called with each finished or stopped answer so the session can save it (R20).
+    @ObservationIgnored public var onRecord: (@MainActor (AnswerRecord) -> Void)?
+    /// Called when "there is answer text to copy" flips, so ⌘⇧C is only registered while it means something (R18).
+    @ObservationIgnored public var onCopyableChange: (@MainActor (Bool) -> Void)?
+    @ObservationIgnored private var wasCopyable = false
 
     private let settings: LLMSettings
     private let makeProvider: @MainActor (String) -> (any LLMProvider)?
@@ -50,12 +72,14 @@ public final class AnswerCoordinator {
     private let log: @MainActor (String) -> Void
     private let cap: Int
 
-    private struct Pending { var request: LLMRequest; var question: String; var providerID: String; var isCloud: Bool }
+    private struct Pending { var request: LLMRequest; var question: String; var providerID: String; var isCloud: Bool; var kind = "answer" }
     private struct TurnKey: Equatable { var start: TimeInterval; var text: String }
 
     private var task: Task<Void, Never>?
     private var generation = 0
     private var last: Pending?
+    /// The request behind the newest plain answer. Chips build on this, so they all share one context.
+    private var base: Pending?
     private var debounceTask: Task<Void, Never>?
     private var debounceKey: TurnKey?
     private var handledKey: TurnKey?
@@ -112,19 +136,82 @@ public final class AnswerCoordinator {
 
     /// Stop keeps the partial answer (R18).
     public func stop() {
+        let wasStreaming = isStreaming
         cancelStream()
-        if case .answering(var a) = state { a.isStreaming = false; state = .answering(a) }
+        if case .answering(var a) = state {
+            a.isStreaming = false; state = .answering(a)
+            if wasStreaming { record(a) }
+        }
+    }
+
+    // MARK: Overlay actions (R17, R18, R19, R20)
+
+    /// The text Copy puts on the pasteboard: the whole answer on screen.
+    public var copyText: String? { if case .answering(let a) = state, !a.text.isEmpty { a.text } else { nil } }
+
+    /// Hands the full answer text to `write`. Returns false when there is nothing to copy.
+    @discardableResult
+    public func copy(to write: (String) -> Void) -> Bool {
+        guard let text = copyText else { return false }
+        write(text); return true
+    }
+
+    /// Chips show under a finished answer, and only on the newest one (they build on its context).
+    public var canFollowUp: Bool {
+        if case .answering(let a) = state, !a.isStreaming, !a.text.isEmpty, base != nil { return history.atLatest }
+        return false
+    }
+
+    public var canGoBack: Bool { !isStreaming && history.canBack }
+    public var canGoForward: Bool { !isStreaming && history.canForward }
+
+    public func goBack() { if !isStreaming, let r = history.back() { show(r) } }
+    public func goForward() { if !isStreaming, let r = history.forward() { show(r) } }
+
+    private func show(_ r: AnswerRecord) {
+        cancelStream()
+        state = .answering(Answer(question: r.question, text: r.text, isStreaming: false, provider: r.provider, model: r.model,
+                                  isCloud: CloudKind.isCloud(providerID: r.provider), latencyMs: r.latencyMs, kind: r.kind))
+    }
+
+    /// A follow-up chip: a new request on the same context plus the answer so far and the chip's instruction.
+    @discardableResult
+    public func chip(_ chip: FollowUpChip) -> AnswerTrigger {
+        guard isSessionRunning() else { return .noSession }
+        guard canFollowUp, let base, case .answering(let shown) = state else { return .nothingToAnswer }
+        var request = base.request
+        request.user += "\n\nYour previous answer:\n\(shown.text)\n\nFollow-up instruction: \(chip.instruction(personaID: request.personaID))"
+        var pending = base
+        pending.request = request; pending.kind = chip.kind
+        last = pending
+        run(pending)
+        return .started
+    }
+
+    private func record(_ a: Answer) {
+        guard !a.text.isEmpty else { return }
+        let r = AnswerRecord(question: a.question, text: a.text, persona: last?.request.personaID ?? "", provider: a.provider,
+                             model: a.model, kind: a.kind, latencyMs: a.latencyMs)
+        history.append(r)
+        onRecord?(r)
+    }
+
+    private func copyableMayHaveChanged() {
+        let now = copyText != nil
+        guard now != wasCopyable else { return }
+        wasCopyable = now
+        onCopyableChange?(now)
     }
 
     /// The session ended: nothing may keep running (R10, R24).
     public func sessionStopped() {
         cancelStream(); cancelDebounce()
-        state = .idle; last = nil; handledKey = nil
+        state = .idle; last = nil; base = nil; handledKey = nil; history = AnswerHistory()
     }
 
     public func sessionStarted() {
         cancelStream(); cancelDebounce()
-        state = .idle; last = nil; handledKey = nil
+        state = .idle; last = nil; base = nil; handledKey = nil; history = AnswerHistory()
     }
 
     /// Call after Local-only changes. Turning it on reselects a local provider and cancels an in-flight cloud answer (R6).
@@ -189,7 +276,7 @@ public final class AnswerCoordinator {
         let context = ContextBuilder.build(persona: p, language: lang, turns: turns(), question: question)
         let pending = Pending(request: LLMRequest(context: context, persona: p, language: lang, model: model),
                               question: question, providerID: id, isCloud: provider.isCloud)
-        last = pending
+        last = pending; base = pending
         run(pending, provider: provider)
     }
 
@@ -202,7 +289,8 @@ public final class AnswerCoordinator {
         let model = pending.request.model
         generation += 1
         let gen = generation
-        state = .answering(Answer(question: pending.question, provider: pending.providerID, model: model, isCloud: provider.isCloud))
+        history.detach()
+        state = .answering(Answer(question: pending.question, provider: pending.providerID, model: model, isCloud: provider.isCloud, kind: pending.kind))
         let stream = provider.stream(pending.request)
         let started = ContinuousClock.now
         task = Task { [weak self] in
@@ -240,6 +328,7 @@ public final class AnswerCoordinator {
         a.isStreaming = false; a.latencyMs = ms
         state = .answering(a)
         task = nil
+        record(a)
         // Only provider, model, latency and a size estimate: never the prompt or the answer (R13).
         log("answer provider=\(a.provider) model=\(a.model.isEmpty ? "default" : a.model) latencyMs=\(ms) tokens~\(ContextBuilder.estimateTokens(a.text))")
     }
