@@ -277,6 +277,7 @@ final class SpeechRestartTests: XCTestCase {
             XCTAssertEqual(notices, [], "n=\(n)")
             XCTAssertEqual(record?.segments.filter { $0.speaker == .them }.map(\.text), ["a", "b", "c", "d", "e"], "n=\(n)")
             XCTAssertEqual(stt.transcribeCalls(.them), n + 1, "n=\(n)")
+            XCTAssertEqual(stt.buffersReceived(.them), 8, "no buffer lost across \(n) restarts")
         }
     }
 
@@ -306,5 +307,17 @@ final class SpeechRestartTests: XCTestCase {
         let (_, notices) = try await runSession(stt: stt) { stt.transcribeCalls(.them) >= 1 }
         XCTAssertEqual(notices.count, 1)
         XCTAssertEqual(stt.transcribeCalls(.them), 1)
+    }
+
+    // Partial results are not "successful segments": a stream that only ever yields partials runs out of budget,
+    // and each restart keeps the dead stream's partial as a final instead of letting the next result replace it.
+    func testPartialsDoNotResetBudgetAndAreKeptOnRestart() async throws {
+        let partials = (0..<6).map { Segment(speaker: .them, text: "p\($0)", start: Double($0), end: Double($0) + 1, locale: "en-US", confidence: 0.5, isFinal: false) }
+        let f: (afterSegments: Int, error: Error)? = (1, Boom())
+        let stt = FakeSTTProvider(scripts: [.them: partials], callFailures: [.them: [f, f, f, f, f, f]])
+        let (record, notices) = try await runSession(stt: stt, themBuffers: 10) { stt.transcribeCalls(.them) >= 4 }
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(stt.transcribeCalls(.them), 4)
+        XCTAssertEqual(record?.segments.filter { $0.speaker == .them }.map(\.text), ["p0", "p1", "p2", "p3"])
     }
 }

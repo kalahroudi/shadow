@@ -68,6 +68,16 @@ public actor Transcript {
         publish()
     }
 
+    /// Turns one speaker's pending partial into a final, used when that speaker's recogniser restarts.
+    public func flushPartial(for speaker: Speaker) {
+        guard var p = state.partials.removeValue(forKey: speaker) else { return }
+        p.isFinal = true
+        let at = state.finals.firstIndex { $0.start > p.start } ?? state.finals.endIndex
+        state.finals.insert(p, at: at)
+        if state.finals.count > cap { state.finals.removeFirst(state.finals.count - cap) }
+        publish()
+    }
+
     /// Clears everything for a new session.
     public func reset() { state = TranscriptSnapshot(); publish() }
 
