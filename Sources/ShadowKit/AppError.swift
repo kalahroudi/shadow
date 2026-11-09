@@ -36,6 +36,7 @@ public enum AppLog {
 public enum UserError {
     public static func message(for error: Error, action: String) -> String {
         if let e = error as? UserFacingError { return e.message }
+        if let e = error as? UpdateError { return e.message }
         if let e = error as? URLError {
             switch e.code {
             case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .timedOut:
