@@ -44,7 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// Clears leftovers of a self-update, shows the outcome once, and tells the swap script this build started (R12, R13).
     private func finishUpdateHandoff(_ model: AppModel) {
         let paths = AppPaths()
-        if let notice = UpdateHandoff.cleanup(paths: paths, currentVersion: BuildInfo.current.version) { model.session.showNotice(notice.text) }
+        if let notice = UpdateHandoff.cleanup(paths: paths, currentVersion: BuildInfo.current.version) {
+            Updater.shared.handoffText = notice.text
+            model.session.showNotice(notice.text)
+        }
         Task { await Updater.shared.launchCheckIfDue() }   // once, only when due; no timer (R1, R3)
         Task { await UpdateHandoff.confirmLaunch(paths: paths, isAlive: { true }) }   // one-shot; a quit ends the task before it writes
     }

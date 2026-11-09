@@ -95,6 +95,7 @@ public struct UpdateChecker: Sendable {
         let data: Data, status: Int
         do { (data, status) = try await transport.get(Self.latestURL) }
         catch let e as UpdateError { throw e }
+        catch where UpdateCancellation.isCancellation(error) { throw CancellationError() }
         catch is URLError { throw UpdateError(.offline) }
         catch { throw UpdateError(.badRelease, detail: String(describing: error)) }
         switch status {
@@ -106,5 +107,12 @@ public struct UpdateChecker: Sendable {
         do { release = try JSONDecoder().decode(ReleaseInfo.self, from: data) }
         catch { throw UpdateError(.badRelease, detail: "release JSON did not decode") }
         return try UpdateCheck.evaluate(release, current: current)
+    }
+}
+
+/// A cancelled update (Local-only turned on mid-flight) is not an error to show (R18).
+public enum UpdateCancellation {
+    public static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 }

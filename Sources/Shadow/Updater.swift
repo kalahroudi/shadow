@@ -10,9 +10,14 @@ final class Updater {
     static let shared = Updater()
 
     private(set) var state: UpdateState
+    /// "Updated to X" or the scrubbed rollback reason from the last hand-off, shown in the Updates pane (R13).
+    var handoffText: String?
     private let defaults = UserDefaults.standard
     private let build = BuildInfo.current
     private let bundleURL = Bundle.main.bundleURL
+
+    /// The check or install in flight, so Local-only can cancel it (R18).
+    private var running: Task<Void, Never>?
 
     private init() { state = .idle; refreshGate() }
 
@@ -25,7 +30,11 @@ final class Updater {
 
     /// Follows Local-only and the development-build rule. Turning Local-only off returns to idle; it never starts a check.
     func refreshGate() {
-        if let gate { state = gate; return }
+        if let gate {
+            // Local-only (or a development build) means no contact with GitHub: stop whatever is running.
+            if let running { running.cancel(); self.running = nil; try? FileManager.default.removeItem(at: AppPaths().updatesDir) }
+            state = gate; return
+        }
         if state == .developmentBuild || state == .pausedLocalOnly { state = .idle }
     }
 
@@ -51,6 +60,13 @@ final class Updater {
     func checkNow() async {
         refreshGate()
         guard state.canCheck else { return }
+        let task = Task { await performCheck() }
+        running = task
+        await task.value
+        if running == task { running = nil }
+    }
+
+    private func performCheck() async {
         if let wait = defaults.object(forKey: PrefsDefaults.lastUpdateRetryAfter) as? Date, Date() < wait {
             state = .failed(UpdateError(.rateLimited, detail: "waiting after HTTP 403/429")); return
         }
@@ -65,6 +81,7 @@ final class Updater {
             case .noDownloadableBuild: state = .noBuild
             }
         } catch {
+            if UpdateCancellation.isCancellation(error) || Task.isCancelled { refreshGate(); return }   // paused: the gate set the state
             let e = error as? UpdateError ?? UpdateError(.badRelease, detail: String(describing: error))
             if e.kind == .rateLimited {
                 defaults.set(Date().addingTimeInterval(UpdateChecker.rateLimitRetryAfter), forKey: PrefsDefaults.lastUpdateRetryAfter)
@@ -77,6 +94,13 @@ final class Updater {
     func updateAndRelaunch() async {
         refreshGate()
         guard let update = state.availableUpdate else { return }
+        let task = Task { await performInstall(update) }
+        running = task
+        await task.value
+        if running == task { running = nil }
+    }
+
+    private func performInstall(_ update: AvailableUpdate) async {
         state = .installing(.downloading, 0)
         let paths = AppPaths()
         let installer = UpdateInstaller(transport: GitHubTransport(appVersion: build.version), paths: paths)
@@ -86,10 +110,15 @@ final class Updater {
                     if case .installing = Updater.shared.state { Updater.shared.state = .installing(step, fraction) }
                 }
             }
+            try Task.checkCancellation()   // Local-only may have been turned on during the last step
             state = .relaunching
             try UpdateSwap(installedApp: bundleURL, stagedApp: staged, paths: paths).launch(version: update.version)
             NSApp.terminate(nil)
         } catch {
+            if UpdateCancellation.isCancellation(error) || Task.isCancelled {
+                try? FileManager.default.removeItem(at: paths.updatesDir)
+                refreshGate(); return
+            }
             state = .failed(error as? UpdateError ?? UpdateError(.verificationFailed, detail: String(describing: error)))
         }
     }
