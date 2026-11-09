@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Shadow — UI mockup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --accent:#7c5cff; --accent2:#4d9bff; --onaccent:#fff;
+  --them:#5aa9ff; --you:#43d19e; --ok:#32d583; --warn:#f5a524; --danger:#ff5d5d;
+}
+[data-theme=dark]{
+  --bg:#0d0d12; --win:#1c1c21; --win2:#242429; --side:#18181d; --card:#26262c; --line:rgba(255,255,255,.09);
+  --text:#f2f2f5; --text2:#a6a6b0; --text3:#6f6f7a; --fill:rgba(255,255,255,.07); --fill2:rgba(255,255,255,.12);
+  --soft:rgba(124,92,255,.18); --glass:rgba(30,30,38,.62); --glassline:rgba(255,255,255,.14);
+  --shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 .5px rgba(255,255,255,.1);
+  --wall:radial-gradient(1200px 700px at 15% 10%,#3b2a7a 0,transparent 60%),radial-gradient(900px 600px at 90% 90%,#0e4a7a 0,transparent 60%),#0b0b14;
+  --tile:#17171f; --menubar:rgba(20,20,28,.55);
+}
+[data-theme=light]{
+  --bg:#e9e9ee; --win:#fbfbfd; --win2:#f2f2f6; --side:#f1f1f5; --card:#fff; --line:rgba(0,0,0,.09);
+  --text:#1c1c22; --text2:#5d5d68; --text3:#9a9aa5; --fill:rgba(0,0,0,.05); --fill2:rgba(0,0,0,.09);
+  --soft:rgba(124,92,255,.12); --glass:rgba(255,255,255,.66); --glassline:rgba(255,255,255,.85);
+  --shadow:0 24px 60px rgba(30,20,80,.22),0 0 0 .5px rgba(0,0,0,.12);
+  --wall:radial-gradient(1200px 700px at 15% 10%,#cbbcff 0,transparent 60%),radial-gradient(900px 600px at 90% 90%,#a9d4ff 0,transparent 60%),#e6e6f2;
+  --tile:#ffffff; --menubar:rgba(255,255,255,.55);
+}
+*{box-sizing:border-box;margin:0}
+body{font:13px/1.45 var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+[hidden]{display:none!important}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.top{position:sticky;top:0;z-index:50;display:flex;gap:14px;align-items:center;padding:10px 18px;background:var(--win);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top h1{font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.nav{display:flex;gap:2px;flex-wrap:wrap}
+.nav button{padding:5px 10px;border-radius:7px;color:var(--text2)}
+.nav button.on{background:var(--soft);color:var(--text);font-weight:600}
+.nav button:hover{background:var(--fill)}
+.sp{flex:1}
+.seg{display:inline-flex;background:var(--fill);border-radius:8px;padding:2px;gap:1px}
+.seg button{padding:3px 10px;border-radius:6px;font-size:12px;color:var(--text2)}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.stagewrap{padding:20px 18px 60px;max-width:1240px;margin:auto}
+.screen{display:none}.screen.on{display:block}
+.fit{width:100%;position:relative}
+.stage{position:absolute;left:0;top:0;width:1200px;transform-origin:0 0;height:700px;border-radius:14px;overflow:hidden;background:var(--wall);box-shadow:0 0 0 1px var(--line)}
+.controls{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.note{margin:12px 2px 0;color:var(--text2);font-size:12px;max-width:900px}
+.note b{color:var(--text)}
+.win{position:absolute;background:var(--win);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.tb{height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--win2)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.tb .ttl{font-weight:600;margin-left:8px}
+.pill{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:var(--fill);font-size:12px;color:var(--text2)}
+.pill.ok{background:rgba(50,213,131,.15);color:var(--ok)}.pill.warn{background:rgba(245,165,36,.16);color:var(--warn)}.pill.acc{background:var(--soft);color:var(--accent)}
+[data-theme=dark] .pill.acc{color:#b6a4ff}
+.btn{padding:5px 13px;border-radius:8px;background:var(--fill2);font-weight:500;display:inline-flex;gap:6px;align-items:center}
+.btn:hover{filter:brightness(1.1)}
+.btn.pri{background:linear-gradient(180deg,var(--accent),#6445f0);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 2px 6px rgba(100,69,240,.4)}
+.btn.sm{padding:3px 10px;font-size:12px}
+.kbd{white-space:nowrap;font:11px var(--mono);padding:1px 6px;border-radius:5px;background:var(--fill2);color:var(--text2);border:1px solid var(--line);border-bottom-width:2px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.dot.rec{background:var(--danger);animation:pulse 1.4s infinite}.dot.idle{background:var(--text3)}
+@keyframes pulse{50%{opacity:.35}}
+.meter{min-width:20px;display:flex;gap:2px;align-items:flex-end;height:14px}.meter i{width:3px;border-radius:2px;background:var(--ok);animation:bar 1s infinite ease-in-out}
+.meter i:nth-child(2){animation-delay:.15s}.meter i:nth-child(3){animation-delay:.3s}.meter i:nth-child(4){animation-delay:.45s}
+@keyframes bar{0%,100%{height:3px}50%{height:14px}}
+.meter.still i{animation:none;height:3px;background:var(--text3)}
+.caret{display:inline-block;width:7px;height:14px;background:var(--accent);vertical-align:-2px;margin-left:2px;animation:pulse 1s infinite}
+.sw{width:34px;height:20px;border-radius:99px;background:var(--fill2);position:relative;flex:none;transition:.15s;cursor:pointer;display:inline-block}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:.15s}
+.sw.on{background:var(--accent)}.sw.on::after{left:16px}
+.who{font-size:11px;font-weight:700;letter-spacing:.03em}
+.who.them{color:var(--them)}.who.you{color:var(--you)}
+.chip{padding:4px 11px;border-radius:99px;background:var(--fill);border:1px solid var(--line);font-size:12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.chip:hover,.chip.hit{background:var(--soft)}
+input.field,textarea.field{background:var(--fill);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--text);font:inherit;outline:none;width:100%}
+input.field:focus,textarea.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.row{display:flex;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line)}
+.row:last-child{border:0}.row .t{flex:1}.row .t b{font-weight:500;display:block}.row .t span{color:var(--text2);font-size:12px}
+h3.sec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:18px 0 6px 4px;font-weight:600}
+select.sel{background:var(--fill2);color:var(--text);border:0;border-radius:7px;padding:4px 8px;font:inherit}
+.meet{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:10px;padding:46px 14px 14px}
+.meet .t{background:var(--tile);border-radius:12px;position:relative;display:grid;place-items:center;color:var(--text3);box-shadow:0 0 0 1px var(--line)}
+.meet .av{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;font-size:28px;font-weight:600;color:#fff}
+.meet .t em{position:absolute;left:10px;bottom:8px;font-style:normal;font-size:12px;color:var(--text2)}
+.meet .t.spk{box-shadow:0 0 0 2px var(--ok)}
+.mbar{position:absolute;top:0;left:0;right:0;height:28px;background:var(--menubar);backdrop-filter:blur(30px) saturate(1.6);-webkit-backdrop-filter:blur(30px) saturate(1.6);display:flex;align-items:center;gap:16px;padding:0 14px;font-size:12.5px;z-index:5}
+.mbar b{font-weight:600}.mbar .r{margin-left:auto;display:flex;gap:14px;align-items:center}
+.mbar .app{display:inline-grid;place-items:center;padding:2px 6px;border-radius:5px}
+.mbar .app.act{background:var(--fill2)}
+.ov{position:absolute;right:26px;top:70px;width:420px;min-width:300px;min-height:70px;max-width:760px;resize:both;overflow:hidden;
+  background:var(--glass);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid var(--glassline);border-radius:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;z-index:6;transition:opacity .2s}
+.ov.static{resize:none}
+.ovh{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:grab;border-bottom:1px solid var(--line)}
+.ovh .name{font-weight:600;font-size:12.5px;display:flex;gap:7px;align-items:center}
+.ovh .ib{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;color:var(--text2)}
+.ovh .ib:hover{background:var(--fill2);color:var(--text)}.ovh .ib.on{background:var(--soft);color:var(--accent)}
+.ovb{padding:12px 14px;display:flex;flex-direction:column;gap:10px;overflow:auto;flex:1}
+.ovf{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);color:var(--text2);font-size:11.5px}
+.strip{display:flex;flex-direction:column;gap:6px}
+.strip p{font-size:13px}.strip p.part{color:var(--text2);font-style:italic}
+.q{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-radius:10px;background:var(--fill)}
+.ans{font-size:13.5px;line-height:1.55}
+.ans ul{padding-left:18px;margin:4px 0}.ans li{margin:3px 0}
+.ans strong{color:var(--accent)}[data-theme=dark] .ans strong{color:#b6a4ff}
+.sug{display:flex;gap:6px;flex-wrap:wrap}
+.grip{position:absolute;right:4px;bottom:4px;width:12px;height:12px;pointer-events:none;opacity:.5;background:linear-gradient(135deg,transparent 50%,var(--text3) 50%,var(--text3) 58%,transparent 58%,transparent 72%,var(--text3) 72%,var(--text3) 80%,transparent 80%)}
+.ov.ct{outline:1.5px dashed var(--accent);outline-offset:3px}
+.ctbadge{position:absolute;left:12px;bottom:12px;z-index:7}
+.pop{position:absolute;top:34px;right:120px;width:340px;background:var(--win);border-radius:12px;box-shadow:var(--shadow);padding:12px;z-index:6}
+.pop::before{content:"";position:absolute;top:-6px;right:34px;width:12px;height:12px;background:var(--win);transform:rotate(45deg);border-radius:2px}
+.pop .big{width:100%;justify-content:center;padding:9px;font-size:13.5px}
+.pop .grp{margin-top:10px}.meterrow{display:flex;align-items:center;gap:10px;padding:6px 2px}
+.bar{flex:1;height:6px;border-radius:3px;background:var(--fill2);overflow:hidden}.bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--ok),#b7e86a)}
+.menuitem{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:7px;cursor:pointer}.menuitem:hover{background:var(--soft)}
+.menuitem .r{margin-left:auto;color:var(--text3);font-size:12px}
+.steps{display:flex;gap:8px;margin-bottom:12px}
+.steps button{padding:6px 14px;border-radius:99px;background:var(--fill);color:var(--text2)}
+.steps button.on{background:var(--accent);color:#fff}
+.code{position:absolute;left:60px;top:70px;width:520px;font:12.5px/1.6 var(--mono);background:#14141b;color:#d4d4dc;border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.code .k{color:#c792ea}.code .f{color:#82aaff}.code .c{color:#6b7280}
+.selbox{position:absolute;left:44px;top:100px;width:560px;height:300px;border:1.5px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);z-index:5}
+.selbox .dim-b{position:absolute;left:0;top:-26px;background:#000;color:#fff;font:11px var(--mono);padding:2px 7px;border-radius:5px}
+.selbox i{position:absolute;width:8px;height:8px;background:#fff;border-radius:50%}
+.hud{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:7;background:var(--glass);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid var(--glassline);border-radius:18px;padding:22px 30px;text-align:center;box-shadow:var(--shadow)}
+.hud .bigkey{font:20px var(--mono);padding:6px 14px;border-radius:8px;background:var(--fill2);border:1px solid var(--line);border-bottom-width:3px;display:inline-block;letter-spacing:.1em}
+.split{display:flex;flex:1;min-height:0}
+.side{width:200px;background:var(--side);border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:2px;flex:none}
+.side button{display:flex;gap:9px;align-items:center;padding:6px 10px;border-radius:8px;color:var(--text2);text-align:left;width:100%}
+.side button.on{background:var(--soft);color:var(--text);font-weight:500}.side button:hover{background:var(--fill)}
+.side .h{font-size:11px;color:var(--text3);padding:10px 10px 4px;text-transform:uppercase;letter-spacing:.05em}
+.pane{flex:1;overflow:auto;padding:18px 22px}
+.pane h2{font-size:20px;font-weight:700;margin-bottom:2px}.pane .sub{color:var(--text2);margin-bottom:6px}
+.tab{display:none}.tab.on{display:block}
+.tr{display:grid;grid-template-columns:62px 1fr;gap:4px 12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.tr .ts{font:11px var(--mono);color:var(--text3);padding-top:2px}
+mark{background:rgba(245,165,36,.35);color:inherit;border-radius:3px}
+.hist{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line);align-items:center;cursor:pointer}
+.hist:hover{background:var(--fill)}.hist .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--soft);color:var(--accent)}
+.hist .m{flex:1;min-width:0}.hist .m b{font-weight:600}.hist .m span{color:var(--text2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:640px;height:560px}
+.obstep{display:none;flex:1;flex-direction:column;padding:30px 44px;overflow:auto}.obstep.on{display:flex}
+.dots{display:flex;gap:6px;justify-content:center;padding:14px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--fill2)}.dots i.on{background:var(--accent)}
+.perm{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:10px}
+.perm .pi{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--soft);color:var(--accent)}
+.opt{padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;margin-bottom:8px;display:flex;gap:12px;align-items:center}
+.opt.on{border-color:var(--accent);background:var(--soft)}
+.opt .r{width:16px;height:16px;border-radius:50%;border:2px solid var(--text3);flex:none}.opt.on .r{border-color:var(--accent);background:radial-gradient(var(--accent) 45%,transparent 50%)}
+.card .opt{border:0;border-radius:0;margin:0;border-bottom:1px solid var(--line)}.card .opt:last-child{border-bottom:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2 .opt{margin:0}
+.rat{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.rat .card{padding:16px}.rat h4{margin-bottom:6px;font-size:14px}.rat p{color:var(--text2);font-size:12.5px}
+.rat .wide{grid-column:1/-1}
+.sw8{display:flex;gap:6px;margin-top:8px}.sw8 i{width:26px;height:26px;border-radius:7px;box-shadow:0 0 0 1px var(--line)}
+.names{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:99px;font-size:12.5px;z-index:99;opacity:0;pointer-events:none;transition:.2s}
+.toast.show{opacity:1}
+.dropdown{position:absolute;right:0;top:30px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px;z-index:9;min-width:140px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<linearGradient id="ig" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b7bff"/><stop offset="1" stop-color="#3f8cff"/></linearGradient>
+<symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+<symbol id="i-spk" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-ptr" viewBox="0 0 24 24"><path d="M6 3l12 8-5.5 1.5L10 18z"/></symbol>
+<symbol id="i-exp" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+<symbol id="i-srch" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+<symbol id="i-clk" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/></symbol>
+<symbol id="i-kbd" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
+<symbol id="i-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-cpy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+<symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+<symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4M22 12h-1"/></symbol>
+<symbol id="i-chk" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+<symbol id="i-glb" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+<symbol id="i-lst" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></symbol>
+<symbol id="appicon" viewBox="0 0 512 512">
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="url(#ig)"/>
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="3"/>
+  <path d="M120 170a56 56 0 0 1 56-56h160a56 56 0 0 1 56 56v108a56 56 0 0 1-56 56H236l-72 62v-62h-8a56 56 0 0 1-36-56z" fill="#fff" fill-opacity=".95"/>
+  <g stroke="#6a4cf0" stroke-width="22" stroke-linecap="round"><path d="M190 200v76"/><path d="M236 166v144"/><path d="M282 190v96"/><path d="M328 214v48"/></g>
+</symbol>
+</defs>
+</svg>
+
+<div class="top">
+  <h1><svg width="22" height="22"><use href="#appicon"/></svg> Shadow <span class="pill acc">mockup</span></h1>
+  <div class="nav" id="nav">
+    <button data-s="overlay" class="on">1 Overlay</button>
+    <button data-s="popover">2 Menu bar</button>
+    <button data-s="shot">3 Screenshot-ask</button>
+    <button data-s="session">4 Session</button>
+    <button data-s="history">5 History</button>
+    <button data-s="settings">6 Settings</button>
+    <button data-s="onboard">7 First run</button>
+    <button data-s="design">Rationale</button>
+  </div>
+  <div class="sp"></div>
+  <span class="lbl">Theme</span>
+  <div class="seg" id="themeSeg"><button data-v="dark" class="on">Dark</button><button data-v="light">Light</button></div>
+</div>
+
+<div class="stagewrap">
+
+<!-- 1 OVERLAY -->
+<section class="screen on" id="s-overlay">
+  <div class="controls">
+    <span><span class="lbl">State</span><span class="seg" id="stSeg"><button data-v="idle">Idle</button><button data-v="listening">Listening</button><button data-v="answering" class="on">Answering</button></span></span>
+    <span><span class="lbl">Size</span><span class="seg" id="szSeg"><button data-v="compact" class="on">Compact</button><button data-v="expanded">Expanded</button></span></span>
+    <span class="lbl">Click-through</span><span class="sw" id="ctSw"></span>
+    <span class="lbl">Opacity</span><input type="range" id="op" min="40" max="100" value="100" style="width:110px;accent-color:#7c5cff">
+    <span class="note" style="margin:0">Drag the header to move; drag the bottom-right corner to resize.</span>
+  </div>
+  <div class="fit"><div class="stage">
+    <div class="mbar"><span></span><b>Google Chrome</b><span>File</span><span>Edit</span><span>View</span><div class="r"><svg class="i"><use href="#i-wave"/></svg><span>Sun 9:41</span></div></div>
+    <div class="meet">
+      <div class="t spk"><div class="av" style="background:#e0685b">DM</div><em>Dana Morris · Hiring manager</em></div>
+      <div class="t"><div class="av" style="background:#5b8de0">PK</div><em>Priya K.</em></div>
+      <div class="t"><div class="av" style="background:#5bb87a">You</div><em>You</em></div>
+    </div>
+    <div class="ov" id="ov" data-state="answering" data-size="compact">
+      <div class="ovh">
+        <div class="name"><svg width="18" height="18"><use href="#appicon"/></svg><span id="ovState">Answering</span></div>
+        <span class="pill acc">Interview ▾</span>
+        <span class="sp"></span>
+        <span data-show="listening answering" style="display:flex;gap:10px;align-items:center;color:var(--text3)">
+          <span style="display:flex;gap:4px;align-items:center"><svg class="i" style="width:12px"><use href="#i-spk"/></svg><span class="meter"><i></i><i></i><i></i><i></i></span></span>
+          <span style="display:flex;gap:4px;align-items:center"><svg class="i" style="width:12px"><use href="#i-mic"/></svg><span class="meter still"><i></i><i></i><i></i><i></i></span></span>
+        </span>
+        <button class="ib" title="Screenshot-ask (⌘⇧S)"><svg class="i"><use href="#i-cam"/></svg></button>
+        <button class="ib" id="ctBtn" title="Click-through"><svg class="i"><use href="#i-ptr"/></svg></button>
+        <button class="ib" id="szBtn" title="Expand / compact"><svg class="i"><use href="#i-exp"/></svg></button>
+        <button class="ib" title="Hide (⌘⇧H)"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="ovb">
+        <div data-show="idle" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+          <div style="color:var(--text2)">Not listening. Start a session to transcribe the call and get live answers.</div>
+          <div style="display:flex;gap:8px;align-items:center"><button class="btn pri"><svg class="i"><use href="#i-play"/></svg>Start session</button><span class="kbd">⌘⇧Space</span></div>
+          <div class="note" style="margin:0;font-size:11.5px">Using <b>Apple SpeechAnalyzer</b> + <b>Apple Foundation Models</b> · nothing leaves this Mac</div>
+        </div>
+        <div data-show="listening" class="strip">
+          <p data-sz="expanded"><span class="who them">THEM</span> Thanks for joining. Let's start with your background in distributed systems.</p>
+          <p><span class="who you">YOU</span> Sure — I've spent the last six years on payments infrastructure.</p>
+          <p><span class="who them">THEM</span> Great. Tell me about a time you had to scale a system under load</p>
+          <p class="part"><span class="who them">THEM</span> …and what you'd do differently<span class="caret"></span></p>
+        </div>
+        <div data-show="listening" data-sz="expanded" class="q" style="color:var(--text2)"><svg class="i" style="margin-top:2px"><use href="#i-spark"/></svg><span>Waiting for a question… press <span class="kbd">⌘⇧A</span> to answer now, or enable <b>auto-suggest</b>.</span></div>
+        <div data-show="answering" class="q"><span class="who them" style="margin-top:2px">THEM</span><span>Tell me about a time you had to scale a system under load.</span></div>
+        <div data-show="answering" class="ans">
+          <strong>Lead with the result:</strong> cut p99 latency 4× during a 10× traffic spike.
+          <ul>
+            <li><b>Situation</b> — checkout service at Black Friday peak, queue depth climbing.</li>
+            <li data-sz="expanded"><b>Task</b> — keep payments under 300&nbsp;ms without a rewrite.</li>
+            <li><b>Action</b> — sharded the ledger by merchant, added a read-through cache<span class="caret"></span></li>
+            <li data-sz="expanded" style="opacity:.45"><b>Result</b> — …</li>
+          </ul>
+        </div>
+        <div data-show="answering" class="sug"><span class="chip">Shorter</span><span class="chip">Add a metric</span><span class="chip">Likely follow-up</span><span class="chip">Say it in Español</span></div>
+        <div data-show="answering" data-sz="expanded" class="strip" style="border-top:1px solid var(--line);padding-top:10px">
+          <p><span class="who them">THEM</span> Tell me about a time you had to scale a system under load.</p>
+          <p class="part"><span class="who you">YOU</span> So, the biggest one was Black Friday<span class="caret"></span></p>
+        </div>
+      </div>
+      <div class="ovf">
+        <span class="dot" id="ovdot"></span><span id="ovfoot">03:12 · Interview persona · Apple FM</span>
+        <span class="sp"></span>
+        <span data-show="answering" class="kbd">⌘⇧C copy</span><span class="kbd">⌘⇧H hide</span>
+      </div>
+      <div class="grip"></div>
+    </div>
+    <span class="pill warn ctbadge" id="ctBadge" hidden>Click-through on · clicks pass to the meeting · <span class="kbd">⌘⇧T</span> to edit</span>
+  </div></div>
+  <p class="note"><b>Visible mode:</b> the default is <b>visible</b>, with an always-on recording indicator in the menu bar. See Settings → Privacy &amp; consent.</p>
+</section>
+
+<!-- 2 POPOVER -->
+<section class="screen" id="s-popover">
+  <div class="fit"><div class="stage">
+    <div class="mbar"><span></span><b>Google Chrome</b><span>File</span><span>Edit</span><div class="r"><span class="app act" id="mbIcon"><svg class="i" style="color:var(--danger)"><use href="#appicon"/></svg></span><svg class="i"><use href="#i-spk"/></svg><span>Sun 9:41</span></div></div>
+    <div class="pop">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <svg width="30" height="30"><use href="#appicon"/></svg>
+        <div style="flex:1"><b>Shadow</b><div style="font-size:12px;color:var(--text2)" id="popSub">Session in progress · 03:12</div></div>
+        <span class="pill ok" id="popPill"><span class="dot rec"></span>Listening</span>
+      </div>
+      <button class="btn pri big" id="popBtn" style="background:linear-gradient(180deg,#ff6b6b,#e04646);box-shadow:0 2px 6px rgba(224,70,70,.4)"><svg class="i"><use href="#i-stop"/></svg><span id="popBtnT">Stop session</span> <span class="kbd" style="margin-left:6px;background:rgba(255,255,255,.2);color:#fff;border-color:transparent">⌘⇧Space</span></button>
+      <div class="grp card" style="padding:4px 12px">
+        <div class="meterrow"><svg class="i"><use href="#i-spk"/></svg><span style="width:62px">Them</span><div class="bar"><i style="width:68%"></i></div><span style="color:var(--text3);font-size:11px;width:84px;text-align:right">Chrome · Meet</span></div>
+        <div class="meterrow"><svg class="i"><use href="#i-mic"/></svg><span style="width:62px">You</span><div class="bar"><i style="width:22%"></i></div><span style="color:var(--text3);font-size:11px;width:84px;text-align:right">MacBook mic</span></div>
+      </div>
+      <div class="grp">
+        <div class="menuitem"><svg class="i"><use href="#i-usr"/></svg>Persona<span class="r"><select class="sel"><option>Interview</option><option>Sales</option><option>Coding</option><option>Meeting notes</option></select></span></div>
+        <div class="menuitem"><svg class="i"><use href="#i-glb"/></svg>Language<span class="r"><select class="sel"><option>Auto-detect</option><option>English</option><option>Español</option><option>Deutsch</option><option>Français</option><option>日本語</option></select></span></div>
+        <div class="menuitem"><svg class="i"><use href="#i-eye"/></svg>Show overlay<span class="r"><span class="sw on"></span></span></div>
+      </div>
+      <h3 class="sec" style="margin-top:8px">Providers</h3>
+      <div class="card" style="padding:2px 12px">
+        <div class="meterrow"><span class="dot"></span><span>Speech</span><span class="sp"></span><span style="color:var(--text2)">Apple SpeechAnalyzer · local</span></div>
+        <div class="meterrow"><span class="dot"></span><span>LLM</span><span class="sp"></span><span style="color:var(--text2)">Apple FM · 142 ms</span></div>
+        <div class="meterrow"><span class="dot" style="background:var(--warn)"></span><span>Anthropic</span><span class="sp"></span><span style="color:var(--text2)">No key · optional</span></div>
+      </div>
+      <div class="grp" style="border-top:1px solid var(--line);padding-top:6px">
+        <div class="menuitem" data-go="shot"><svg class="i"><use href="#i-cam"/></svg>Ask about screen<span class="r kbd">⌘⇧S</span></div>
+        <div class="menuitem" data-go="history"><svg class="i"><use href="#i-clk"/></svg>History…<span class="r kbd">⌘Y</span></div>
+        <div class="menuitem" data-go="settings"><svg class="i"><use href="#i-gear"/></svg>Settings…<span class="r kbd">⌘,</span></div>
+        <div class="menuitem" style="color:var(--text2)" data-toast="Quit is not wired in the mockup">Quit Shadow<span class="r kbd">⌘Q</span></div>
+      </div>
+    </div>
+  </div></div>
+  <p class="note"><b>Status icon</b> is a template image (outline = idle, filled = listening, dashed = paused); state is shape, not colour. Real NSPopover arrow, whole-row hit targets.</p>
+</section>
+
+<!-- 3 SCREENSHOT -->
+<section class="screen" id="s-shot">
+  <div class="steps" id="shotSteps"><button data-v="1" class="on">1 · Hotkey</button><button data-v="2">2 · Select region</button><button data-v="3">3 · Answer in overlay</button></div>
+  <div class="fit"><div class="stage">
+    <div class="mbar"><span></span><b>Chrome</b><span>File</span><span>Edit</span><div class="r"><svg class="i"><use href="#i-wave"/></svg><span>Sun 9:41</span></div></div>
+    <div class="code"><span class="c"># 1. Two Sum — LeetCode</span><br><span class="c"># Return indices of the two numbers that add up to target.</span><br><br><span class="k">def</span> <span class="f">two_sum</span>(nums, target):<br>&nbsp;&nbsp;&nbsp;&nbsp;seen = {}<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">for</span> i, n <span class="k">in</span> <span class="f">enumerate</span>(nums):<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c"># TODO</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return</span> []</div>
+    <div id="shot1"><div class="hud"><div class="bigkey">⌘ ⇧ S</div><div style="margin-top:12px;font-weight:600">Ask about your screen</div><div style="color:var(--text2);font-size:12px;margin-top:2px">Release to drag a region · <span class="kbd">Space</span> full screen · <span class="kbd">Esc</span> cancel</div></div></div>
+    <div id="shot2" hidden><div class="selbox"><span class="dim-b">560 × 300</span><i style="left:-4px;top:-4px"></i><i style="right:-4px;top:-4px"></i><i style="left:-4px;bottom:-4px"></i><i style="right:-4px;bottom:-4px"></i></div>
+      <div style="position:absolute;left:44px;top:420px;z-index:6;font-size:12px;background:#000c;color:#fff;padding:6px 10px;border-radius:8px">Drag to select · release to send · <span class="kbd">⌥</span> add a question first</div></div>
+    <div id="shot3" hidden>
+      <div class="ov static" style="right:26px;top:90px;width:430px;height:auto">
+        <div class="ovh"><div class="name"><svg width="18" height="18"><use href="#appicon"/></svg>Screen answer</div><span class="sp"></span><button class="ib" data-toast="Copied"><svg class="i"><use href="#i-cpy"/></svg></button><button class="ib"><svg class="i"><use href="#i-x"/></svg></button></div>
+        <div class="ovb">
+          <div class="q"><div style="width:64px;height:40px;border-radius:6px;background:#14141b;flex:none;box-shadow:0 0 0 1px var(--line)"></div><span style="font-size:12px;color:var(--text2)">Region 560×300 · <b>Vision OCR</b> read 74 words on-device. The image is not sent to any model unless you allow it.</span></div>
+          <div class="ans"><strong>Hash-map, one pass — O(n).</strong>
+<div style="font:12px/1.6 var(--mono);background:var(--fill);border-radius:8px;padding:8px 10px;margin:6px 0">complement = target - n<br>if complement in seen: return [seen[complement], i]<br>seen[n] = i</div>
+          Say: “I trade O(n) space for a single pass.”<span class="caret"></span></div>
+          <div class="sug"><span class="chip">Explain complexity</span><span class="chip">Edge cases</span><span class="chip">Brute-force first</span></div>
+        </div>
+        <div class="ovf"><span class="dot"></span>Coding persona · Apple FM · 1.2 s</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="note">Hotkey → crosshair region select (same gesture as macOS ⌘⇧4) → OCR happens locally with Vision, result lands in the existing overlay. Focus stays in the meeting.</p>
+</section>
+
+<!-- 4 SESSION -->
+<section class="screen" id="s-session">
+  <div class="fit"><div class="stage">
+    <div class="win" style="inset:26px 40px">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><span class="ttl">Staff Eng interview — Acme Payments</span><span class="pill">Sun 8 Nov · 47 min</span><span class="sp"></span><span class="pill acc">Interview</span>
+        <span style="position:relative"><button class="btn sm" id="expBtn"><svg class="i"><use href="#i-cpy"/></svg>Export ▾</button><div class="dropdown" id="expMenu" hidden><div class="menuitem" data-toast="Exported Markdown">Markdown (.md)</div><div class="menuitem" data-toast="Exported JSON">JSON</div></div></span></div>
+      <div class="split">
+        <div class="side" id="sesSide" style="width:210px"><div class="h">Session</div>
+          <button class="on" data-t="tr"><svg class="i"><use href="#i-lst"/></svg>Transcript</button>
+          <button data-t="sum"><svg class="i"><use href="#i-doc"/></svg>Summary</button>
+          <button data-t="act"><svg class="i"><use href="#i-chk"/></svg>Action items <span class="pill" style="margin-left:auto;padding:0 7px">4</span></button>
+          <button data-t="fu"><svg class="i"><use href="#i-usr"/></svg>Follow-up draft</button>
+          <div class="h">Speakers</div>
+          <div style="padding:2px 10px;display:flex;flex-direction:column;gap:6px;font-size:12px"><span><span class="who them">●</span> Dana Morris · 41%</span><span><span class="who them" style="color:#b58cff">●</span> Priya K. · 12%</span><span><span class="who you">●</span> You · 47%</span></div>
+          <div class="sp"></div><div class="note" style="margin:6px 10px;font-size:11px">Stored locally · 2.1 MB · SwiftData</div>
+        </div>
+        <div class="pane" id="sesPane">
+          <div class="tab on" id="t-tr">
+            <div style="display:flex;gap:8px;margin-bottom:6px"><input class="field" id="trq" placeholder="Search in transcript" style="max-width:280px"><span class="pill">Multi-language ✓</span></div>
+            <div id="trl"></div>
+          </div>
+          <div class="tab" id="t-sum"><h2>Summary</h2><p class="sub">Generated on-device · Apple Foundation Models</p>
+            <div class="card" style="padding:14px 16px;margin-top:10px;line-height:1.6"><b>Overview.</b> Staff-level technical screen with Dana (hiring manager) and Priya (eng). Topics: ledger sharding, Black Friday scaling story, on-call culture, comp range.<br><br><b>Went well:</b> concrete metrics on the scaling story (p99 4×).<br><b>Weak spot:</b> hesitated on consistency trade-offs (12:40).<br><b>Next steps from them:</b> system-design round Thursday with Priya.</div></div>
+          <div class="tab" id="t-act"><h2>Action items</h2><p class="sub">Extracted from the transcript.</p>
+            <div class="card"><div class="row"><span class="sw on"></span><div class="t"><b>Send system-design prep notes to Priya</b><span>You · by Wed · 31:20</span></div></div><div class="row"><span class="sw"></span><div class="t"><b>Share write-up on ledger sharding</b><span>You · 38:02</span></div></div><div class="row"><span class="sw"></span><div class="t"><b>Schedule system-design round (Thursday)</b><span>Dana · 44:50</span></div></div><div class="row"><span class="sw"></span><div class="t"><b>Review the consistency chapter in DDIA</b><span>Self-note · 12:40</span></div></div></div></div>
+          <div class="tab" id="t-fu"><h2>Follow-up draft</h2><p class="sub">Editable. Copy or open in Mail — Shadow never sends anything.</p>
+            <div class="card" style="padding:16px;line-height:1.65" id="fuText"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;align-items:center"><button class="btn pri sm" data-toast="Copied to clipboard"><svg class="i"><use href="#i-cpy"/></svg>Copy</button><button class="btn sm" data-toast="Would open Mail with the draft">Open in Mail</button><span class="chip" data-fu="short">Shorter</span><span class="chip" data-fu="formal">More formal</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 5 HISTORY -->
+<section class="screen" id="s-history">
+  <div class="fit"><div class="stage">
+    <div class="win" style="inset:26px 120px">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><span class="ttl">History</span><span class="sp"></span><span class="pill">128 sessions · 214 MB</span></div>
+      <div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center">
+        <div style="position:relative;flex:1"><svg class="i" style="position:absolute;left:10px;top:9px;color:var(--text3)"><use href="#i-srch"/></svg><input class="field" id="hq" style="padding-left:32px" placeholder="Search transcripts, summaries, action items…" value="latency"></div>
+        <span class="pill">All personas ▾</span><span class="pill">Any date ▾</span>
+      </div>
+      <div id="hl" style="overflow:auto;flex:1"></div>
+      <div style="padding:8px 14px;border-top:1px solid var(--line);color:var(--text2);font-size:12px;display:flex"><span id="hc"></span><span class="sp"></span>Search runs locally · <span class="kbd" style="margin-left:6px">⌫</span>&nbsp;delete · <span class="kbd" style="margin-left:6px">⌘E</span>&nbsp;export</div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 6 SETTINGS -->
+<section class="screen" id="s-settings">
+  <div class="fit"><div class="stage">
+    <div class="win" style="inset:20px 60px">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><span class="ttl" id="setTitle">Speech</span></div>
+      <div class="split">
+        <div class="side" id="setSide">
+          <button class="on" data-t="stt"><svg class="i"><use href="#i-wave"/></svg>Speech</button>
+          <button data-t="llm"><svg class="i"><use href="#i-chip"/></svg>Language model</button>
+          <button data-t="keys"><svg class="i"><use href="#i-key"/></svg>API keys</button>
+          <button data-t="hot"><svg class="i"><use href="#i-kbd"/></svg>Hotkeys</button>
+          <button data-t="per"><svg class="i"><use href="#i-usr"/></svg>Personas</button>
+          <button data-t="kn"><svg class="i"><use href="#i-doc"/></svg>Knowledge</button>
+          <button data-t="pr"><svg class="i"><use href="#i-lock"/></svg>Privacy</button>
+          <button data-t="gen"><svg class="i"><use href="#i-gear"/></svg>General</button>
+        </div>
+        <div class="pane">
+          <div class="tab on" id="st-stt"><h2>Speech</h2><p class="sub">Turns audio into text. Them and You are always separate streams.</p>
+            <h3 class="sec">Provider</h3><div class="card">
+              <div class="opt on"><span class="r"></span><div style="flex:1"><b>Apple SpeechAnalyzer</b><div style="color:var(--text2);font-size:12px">On-device · free · no key · 40+ languages · recommended</div></div><span class="pill ok">Ready</span></div>
+              <div class="opt"><span class="r"></span><div style="flex:1"><b>Deepgram</b><div style="color:var(--text2);font-size:12px">Cloud · fast streaming · needs your key</div></div><span class="pill warn">No key</span></div>
+              <div class="opt"><span class="r"></span><div style="flex:1"><b>Google Speech-to-Text</b><div style="color:var(--text2);font-size:12px">Cloud · many languages · needs your key</div></div><span class="pill warn">No key</span></div></div>
+            <h3 class="sec">Audio &amp; language</h3><div class="card">
+              <div class="row"><div class="t"><b>Them (system audio)</b><span>ScreenCaptureKit — works for Teams, Zoom, Meet in a browser</span></div><select class="sel"><option>All system audio</option></select></div>
+              <div class="row"><div class="t"><b>You (microphone)</b><span>Separate stream so answers know who said what</span></div><select class="sel"><option>MacBook Pro Microphone</option></select></div>
+              <div class="row"><div class="t"><b>Language</b><span>Auto-detect handles mid-call switches</span></div><select class="sel"><option>Auto-detect</option><option>English</option><option>Español</option><option>Deutsch</option><option>Français</option><option>日本語</option></select></div></div></div>
+          <div class="tab" id="st-llm"><h2>Language model</h2><p class="sub">Writes suggestions, summaries and follow-ups.</p>
+            <h3 class="sec">Provider</h3><div class="card">
+              <div class="row"><span class="dot"></span><div class="t"><b>Apple Foundation Models</b><span>On-device · default · no setup</span></div><span class="pill ok">Active</span></div>
+              <div class="row"><span class="dot"></span><div class="t"><b>MLX (local)</b><span>Qwen3 8B 4-bit · 4.6 GB · downloaded</span></div><button class="btn sm">Use</button></div>
+              <div class="row"><span class="dot"></span><div class="t"><b>Ollama</b><span>localhost:11434 · llama3.2 detected</span></div><button class="btn sm">Use</button></div>
+              <div class="row"><span class="dot idle"></span><div class="t"><b>Claude CLI (local)</b><span>Uses your logged-in <span style="font-family:var(--mono)">claude</span> — no key needed</span></div><button class="btn sm">Use</button></div>
+              <div class="row"><span class="dot idle"></span><div class="t"><b>Anthropic · OpenAI · Gemini</b><span>Cloud · add a key in API keys</span></div><span class="pill">Optional</span></div></div>
+            <h3 class="sec">Routing</h3><div class="card"><div class="row"><div class="t"><b>Fast answers vs. summaries</b><span>Small local model live, larger one for the post-session summary</span></div><span class="sw on"></span></div></div></div>
+          <div class="tab" id="st-keys"><h2>API keys</h2><p class="sub">Bring your own. Keys live in the macOS Keychain, never in files or logs, and go only to that provider.</p>
+            <h3 class="sec">Providers</h3><div class="card">
+              <div class="row"><div class="t"><b>Anthropic</b><span style="font-family:var(--mono)">••••••••••••fake</span></div><span class="pill ok">Verified</span><button class="btn sm">Remove</button></div>
+              <div class="row"><div class="t"><b>OpenAI</b><span>Not set</span></div><input class="field" style="width:200px" placeholder="Paste key"><button class="btn sm">Save</button></div>
+              <div class="row"><div class="t"><b>Gemini</b><span>Not set</span></div><input class="field" style="width:200px" placeholder="Paste key"><button class="btn sm">Save</button></div>
+              <div class="row"><div class="t"><b>Deepgram</b><span>Not set</span></div><input class="field" style="width:200px" placeholder="Paste token"><button class="btn sm">Save</button></div>
+              <div class="row"><div class="t"><b>Google Cloud STT</b><span>Not set</span></div><button class="btn sm">Import JSON…</button></div>
+              <div class="row"><div class="t"><b>Claude CLI</b><span>Detected at /opt/homebrew/bin/claude · no key needed</span></div><span class="pill ok">Found</span></div></div>
+            <p class="note"><svg class="i" style="vertical-align:-3px"><use href="#i-lock"/></svg> Cloud providers receive transcript text (and screenshots only if you allow it). A cloud badge shows in the overlay while one is active.</p></div>
+          <div class="tab" id="st-hot"><h2>Hotkeys</h2><p class="sub">Global shortcuts, work while the meeting app is focused.</p>
+            <div class="card">
+              <div class="row"><div class="t"><b>Start / stop session</b></div><span class="kbd">⌘⇧Space</span></div>
+              <div class="row"><div class="t"><b>Answer now</b><span>Use the latest question</span></div><span class="kbd">⌘⇧A</span></div>
+              <div class="row"><div class="t"><b>Ask about screen</b></div><span class="kbd">⌘⇧S</span></div>
+              <div class="row"><div class="t"><b>Show / hide overlay</b></div><span class="kbd">⌘⇧H</span></div>
+              <div class="row"><div class="t"><b>Toggle click-through</b></div><span class="kbd">⌘⇧T</span></div>
+              <div class="row"><div class="t"><b>Compact / expand</b></div><span class="kbd">⌘⇧E</span></div>
+              <div class="row"><div class="t"><b>Copy last answer</b></div><span class="kbd">⌘⇧C</span></div></div></div>
+          <div class="tab" id="st-per"><h2>Personas</h2><p class="sub">A persona is a system prompt, tone, answer length and default knowledge files.</p>
+            <div class="grid2" id="perGrid" style="margin-top:12px">
+              <div class="opt on" data-p="Interview"><span class="r"></span><div><b>Interview</b><div style="color:var(--text2);font-size:12px">STAR answers, concise, first person</div></div></div>
+              <div class="opt" data-p="Sales"><span class="r"></span><div><b>Sales</b><div style="color:var(--text2);font-size:12px">Objection handling, discovery questions</div></div></div>
+              <div class="opt" data-p="Coding"><span class="r"></span><div><b>Coding</b><div style="color:var(--text2);font-size:12px">Code + complexity, screen-aware</div></div></div>
+              <div class="opt" data-p="Meeting notes"><span class="r"></span><div><b>Meeting notes</b><div style="color:var(--text2);font-size:12px">Silent: notes &amp; actions only</div></div></div></div>
+            <h3 class="sec" id="perTitle">Editing “Interview”</h3><textarea class="field" id="perText" rows="5" style="font:12px/1.6 var(--mono)"></textarea>
+            <div class="card" style="margin-top:10px"><div class="row"><div class="t"><b>Answer length</b></div><div class="seg"><button>Short</button><button class="on">Medium</button><button>Long</button></div></div><div class="row"><div class="t"><b>Auto-suggest on questions</b><span>Detect a question from Them and answer without a hotkey</span></div><span class="sw on"></span></div></div></div>
+          <div class="tab" id="st-kn"><h2>Knowledge</h2><p class="sub">Files indexed on this Mac for retrieval (RAG). Embeddings are computed locally.</p>
+            <div style="border:1.5px dashed var(--line);border-radius:12px;padding:20px;text-align:center;color:var(--text2);margin:10px 0">Drop PDFs, Markdown, text or Word files here · or <a style="color:var(--accent)">Choose…</a></div>
+            <div class="card"><div class="row"><svg class="i"><use href="#i-doc"/></svg><div class="t"><b>Alex_Chen_Resume.pdf</b><span>3 pages · 41 chunks · Interview</span></div><span class="pill ok">Indexed</span></div>
+              <div class="row"><svg class="i"><use href="#i-doc"/></svg><div class="t"><b>Acme_JobDescription.md</b><span>1 page · 12 chunks · Interview</span></div><span class="pill ok">Indexed</span></div>
+              <div class="row"><svg class="i"><use href="#i-doc"/></svg><div class="t"><b>Pricing_Playbook.pdf</b><span>24 pages · indexing 62%…</span></div><span class="pill acc">Indexing</span></div></div></div>
+          <div class="tab" id="st-pr"><h2>Privacy &amp; consent</h2><p class="sub">Everything is local unless you add a cloud key. No telemetry, no accounts.</p>
+            <h3 class="sec">Visibility</h3><div class="card">
+              <div class="row"><div class="t"><b>Visible mode</b><span>Overlay shows in screen shares and recordings, and a “Shadow is transcribing” indicator stays in the menu bar. Default.</span></div><span class="sw on"></span></div>
+              <div class="row"><div class="t"><b>Ask before each session</b><span>Reminds you to check the meeting’s recording rules and notify participants if needed</span></div><span class="sw on"></span></div></div>
+            <h3 class="sec">Data</h3><div class="card">
+              <div class="row"><div class="t"><b>Local-only mode</b><span>Block every network call — cloud providers are disabled</span></div><span class="sw"></span></div>
+              <div class="row"><div class="t"><b>Keep audio</b><span>Off: audio is discarded after transcription, only text is stored</span></div><span class="sw"></span></div>
+              <div class="row"><div class="t"><b>Auto-delete sessions after</b></div><select class="sel"><option>Never</option><option>30 days</option><option>90 days</option></select></div></div>
+            <div class="card" style="padding:12px 14px;margin-top:14px;border-color:rgba(245,165,36,.5)"><b>Consent note.</b> <span style="color:var(--text2)">Recording or transcribing others may require their consent, and some employers and interview platforms prohibit assistive tools. You are responsible for following those rules.</span></div></div>
+          <div class="tab" id="st-gen"><h2>General</h2><p class="sub">Startup, appearance and updates.</p>
+            <div class="card"><div class="row"><div class="t"><b>Launch at login</b></div><span class="sw on"></span></div><div class="row"><div class="t"><b>Show Dock icon</b></div><span class="sw on"></span></div><div class="row"><div class="t"><b>Appearance</b></div><div class="seg"><button>System</button><button class="on">Dark</button><button>Light</button></div></div><div class="row"><div class="t"><b>Updates</b><span>Sparkle · v0.1.0 · checked today</span></div><button class="btn sm">Check now</button></div></div></div>
+          <div style="color:var(--text3);font-size:11.5px;margin-top:18px">Settings save automatically</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- 7 ONBOARDING -->
+<section class="screen" id="s-onboard">
+  <div class="fit"><div class="stage">
+    <div class="win ob">
+      <div class="obstep on" id="ob1" style="align-items:center;text-align:center;justify-content:center">
+        <svg width="112" height="112"><use href="#appicon"/></svg>
+        <h2 style="font-size:28px;margin-top:14px">Welcome to Shadow</h2>
+        <p style="color:var(--text2);max-width:400px;margin:8px 0 20px">A free, open-source live assistant for meetings and interviews. Runs on your Mac. No account, no backend.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;text-align:left;color:var(--text2)"><span><svg class="i" style="color:var(--ok)"><use href="#i-chk"/></svg>&nbsp;Live transcript of Them and You</span><span><svg class="i" style="color:var(--ok)"><use href="#i-chk"/></svg>&nbsp;Instant suggested answers</span><span><svg class="i" style="color:var(--ok)"><use href="#i-chk"/></svg>&nbsp;Everything stored locally</span></div>
+      </div>
+      <div class="obstep" id="ob2"><h2 style="font-size:22px">Two permissions</h2><p style="color:var(--text2);margin:4px 0 16px">macOS will ask. Shadow only listens while a session is running.</p>
+        <div class="perm"><div class="pi"><svg class="i"><use href="#i-spk"/></svg></div><div style="flex:1"><b>Screen &amp; System Audio Recording</b><div style="color:var(--text2);font-size:12px">Hear the other side of the call; also used for screenshot-ask. Shadow never records video.</div></div><span class="pill warn" id="permA">Not granted</span></div>
+        <div class="perm"><div class="pi"><svg class="i"><use href="#i-mic"/></svg></div><div style="flex:1"><b>Microphone</b><div style="color:var(--text2);font-size:12px">Hear you, so suggestions know who said what.</div></div><span class="pill ok"><svg class="i" style="width:12px"><use href="#i-chk"/></svg>Granted</span></div>
+        <div class="note">After granting Screen Recording, macOS may ask you to reopen Shadow. <button class="btn sm" id="permCheck" style="margin-left:6px">I did it — check again</button></div></div>
+      <div class="obstep" id="ob3"><h2 style="font-size:22px">Choose your brain</h2><p style="color:var(--text2);margin:4px 0 16px">You can change this any time in Settings.</p>
+        <div id="provOpts">
+        <div class="opt on"><span class="r"></span><div style="flex:1"><b>On-device, no keys</b> <span class="pill ok" style="margin-left:6px">Recommended</span><div style="color:var(--text2);font-size:12px">Apple SpeechAnalyzer + Apple Foundation Models. Nothing leaves your Mac.</div></div></div>
+        <div class="opt"><span class="r"></span><div style="flex:1"><b>Local models</b><div style="color:var(--text2);font-size:12px">MLX or Ollama — bigger, uses more RAM. Ollama detected.</div></div></div>
+        <div class="opt"><span class="r"></span><div style="flex:1"><b>Bring your own key</b><div style="color:var(--text2);font-size:12px">Anthropic, OpenAI, Gemini, Deepgram, Google — stored in Keychain.</div></div></div>
+        <div class="opt"><span class="r"></span><div style="flex:1"><b>Claude CLI</b><div style="color:var(--text2);font-size:12px">Use the <span style="font-family:var(--mono)">claude</span> you already logged into.</div></div></div></div></div>
+      <div class="obstep" id="ob4"><h2 style="font-size:22px">One more thing</h2><p style="color:var(--text2);margin:4px 0 14px">Before your first session.</p>
+        <div class="card" style="padding:14px 16px;border-color:rgba(245,165,36,.5);line-height:1.6"><b>Consent &amp; rules.</b> Recording or transcribing other people may require their consent, and some employers or interview platforms ban assistive tools. Shadow is visible by default (menu-bar indicator + on-screen overlay). You decide when it’s appropriate.</div>
+        <div class="card" style="margin-top:12px"><div class="row"><div class="t"><b>Remind me before each session</b></div><span class="sw on"></span></div><div class="row"><div class="t"><b>Launch at login</b></div><span class="sw on"></span></div></div>
+        <label style="display:flex;gap:8px;margin-top:14px;align-items:center"><span class="sw on"></span>I understand and will follow the rules that apply to me</label></div>
+      <div class="dots" id="obDots"><i class="on"></i><i></i><i></i><i></i></div>
+      <div style="display:flex;padding:0 22px 20px;gap:8px"><button class="btn" id="obBack" style="visibility:hidden">Back</button><span class="sp"></span><button class="btn pri" id="obNext">Continue</button></div>
+    </div>
+  </div></div>
+</section>
+
+<!-- RATIONALE -->
+<section class="screen" id="s-design">
+  <div class="card" style="padding:22px;line-height:1.6">
+    <h2 style="font-size:22px">Design rationale</h2>
+    <p class="note" style="max-width:none;font-size:13px">Plain HTML for fast review; every control maps to a SwiftUI/AppKit primitive (see “Native mapping”).</p>
+  </div>
+  <div class="rat">
+    <div class="card"><h4>Visual language</h4><p>Quiet instrument panel. The overlay is frosted glass (<code>NSVisualEffectView</code> / glass effect on macOS 26) so the meeting stays visible behind it; windows are flat system surfaces. One accent (violet→blue, tied to the icon) is reserved for state: active persona, streaming caret, selection. Green/amber/red only for provider health and recording.</p><div class="sw8"><i style="background:#7c5cff"></i><i style="background:#4d9bff"></i><i style="background:#5aa9ff"></i><i style="background:#43d19e"></i><i style="background:#f5a524"></i><i style="background:#ff5d5d"></i></div></div>
+    <div class="card"><h4>Typography</h4><p>SF Pro (system font), 13 pt body as in macOS controls, 11 pt uppercase tracked section labels, 20 pt pane titles. SF Mono only for code, keys and timestamps. Speaker labels (<span class="who them">THEM</span> / <span class="who you">YOU</span>) use colour <i>and</i> text, never colour alone.</p></div>
+    <div class="card"><h4>Why it feels native</h4><p>Real NSPopover with arrow from a template status icon; traffic-light windows with toolbar and sidebar; tinted sidebar selection; keycaps for shortcuts; segmented controls, switches and pop-up buttons with system metrics; whole-row hit targets; “Settings save automatically”; light/dark from the system with an explicit override that also themes the popover.</p></div>
+    <div class="card"><h4>Overlay principles</h4><p>1) Glanceable: ≤ 4 bullets, answer starts with the result. 2) Never steals focus (non-activating <code>NSPanel</code>, floating level, all Spaces). 3) Click-through ignores the mouse; a dashed outline and hotkey hint show it is on. 4) Resizable, remembers frame per display. 5) Opacity slider.</p></div>
+    <div class="card"><h4>Trust &amp; visibility</h4><p>Default is <b>visible mode</b>: menu-bar recording indicator, pre-session reminder, consent note in onboarding and Settings. A cloud badge shows whenever a non-local provider is active. Shadow never offers undetectable features.</p></div>
+    <div class="card"><h4>Native mapping</h4><p>Overlay → nonactivating <code>NSPanel</code> + SwiftUI. Popover → <code>NSPopover</code>. Windows → AppKit hosting SwiftUI, destroyed on close. Settings → custom sidebar pane. Keys → Keychain. Audio → ScreenCaptureKit + AVAudioEngine. History → SwiftData.</p></div>
+    <div class="card wide"><h4>Name: Shadow</h4><p>Decided. A quiet presence beside you in the call — fits the overlay-at-your-shoulder idea. Alternatives considered: Cue, Murmur, Wingmate. Repo and Homebrew cask: <code>shadow</code>; if the cask name is taken, <code>shadow-app</code>. The bundle name and menu-bar tooltip are “Shadow”.</p></div>
+    <div class="card wide"><h4>App icon</h4><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><svg width="128" height="128"><use href="#appicon"/></svg><svg width="64" height="64"><use href="#appicon"/></svg><svg width="32" height="32"><use href="#appicon"/></svg><svg width="16" height="16"><use href="#appicon"/></svg><p style="max-width:560px">Speech bubble (conversation) holding four voice-level bars (live audio), on a violet→blue squircle. Drawn in code per the repo convention; the menu bar glyph is the same bubble+bars as a monochrome template image.</p></div></div>
+  </div>
+</section>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+function seg(el,cb){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$$('button',el).forEach(x=>x.classList.toggle('on',x===b));cb&&cb(b.dataset.v)})}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1400)}
+function go(s){$$('.screen').forEach(x=>x.classList.toggle('on',x.id==='s-'+s));$$('#nav button').forEach(x=>x.classList.toggle('on',x.dataset.s===s));history.replaceState(null,'','#'+s);fit()}
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.s)});
+seg($('#themeSeg'),v=>document.documentElement.dataset.theme=v);
+document.addEventListener('click',e=>{
+  const s=e.target.closest('.sw');if(s&&s.id!=='ctSw')s.classList.toggle('on');
+  const g=e.target.closest('[data-go]');if(g)go(g.dataset.go);
+  const t=e.target.closest('[data-toast]');if(t)toast(t.dataset.toast);
+  const c=e.target.closest('.chip');if(c&&!c.dataset.fu){c.classList.add('hit');toast('“'+c.textContent.trim()+'” — regenerating…');setTimeout(()=>c.classList.remove('hit'),900)}
+});
+/* overlay */
+function fit(){const w=Math.min(innerWidth-36,1240),sc=Math.max(.4,w/1200);$$('.fit').forEach(f=>{f.style.height=700*sc+'px';f.firstElementChild.style.transform='scale('+sc+')'});window.__sc=sc}
+addEventListener('resize',fit);
+const ov=$('#ov');
+function applyOv(){
+  const st=ov.dataset.state, sz=ov.dataset.size;
+  $$('[data-show]',ov).forEach(e=>{e.hidden=!e.dataset.show.split(' ').includes(st)});
+  $$('[data-sz]',ov).forEach(e=>{e.hidden=e.dataset.sz!==sz||(e.closest('[data-show]')&&e.closest('[data-show]').hidden)||(e.dataset.show&&!e.dataset.show.split(' ').includes(st))});
+  $('#ovState').textContent={idle:'Idle',listening:'Listening',answering:'Answering'}[st];
+  $('#ovdot').className='dot '+(st==='idle'?'idle':'rec');
+  $('#ovfoot').textContent=st==='idle'?'Ready · Interview persona · Apple FM':'03:12 · Interview persona · Apple FM';
+  ov.style.height=sz==='compact'?'auto':'560px';ov.style.width=sz==='compact'?'420px':'520px';
+}
+seg($('#stSeg'),v=>{ov.dataset.state=v;applyOv()});
+seg($('#szSeg'),v=>{ov.dataset.size=v;applyOv()});
+$('#szBtn').onclick=()=>{const v=ov.dataset.size==='compact'?'expanded':'compact';$$('#szSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));ov.dataset.size=v;applyOv()};
+function setCT(on){ov.classList.toggle('ct',on);$('#ctSw').classList.toggle('on',on);$('#ctBtn').classList.toggle('on',on);$('#ctBadge').hidden=!on}
+$('#ctSw').onclick=$('#ctBtn').onclick=()=>setCT(!ov.classList.contains('ct'));
+$('#op').oninput=e=>ov.style.opacity=e.target.value/100;
+applyOv();
+(()=>{const h=$('.ovh',ov);let sx,sy,ox,oy,d=0;h.onmousedown=e=>{if(e.target.closest('button'))return;d=1;sx=e.clientX;sy=e.clientY;ox=ov.offsetLeft;oy=ov.offsetTop;ov.style.right='auto';e.preventDefault()};
+addEventListener('mousemove',e=>{if(!d)return;ov.style.left=ox+(e.clientX-sx)/window.__sc+'px';ov.style.top=oy+(e.clientY-sy)/window.__sc+'px'});addEventListener('mouseup',()=>d=0)})();
+/* popover start/stop */
+let rec=true;$('#popBtn').onclick=()=>{rec=!rec;$('#popBtnT').textContent=rec?'Stop session':'Start session';$('#popBtn').style.background=rec?'linear-gradient(180deg,#ff6b6b,#e04646)':'';$('#popSub').textContent=rec?'Session in progress · 03:12':'Ready';$('#popPill').className='pill '+(rec?'ok':'');$('#popPill').innerHTML=rec?'<span class="dot rec"></span>Listening':'<span class="dot idle"></span>Idle';$('#mbIcon svg').style.color=rec?'var(--danger)':'currentColor'};
+/* screenshot */
+seg($('#shotSteps'),v=>{[1,2,3].forEach(i=>$('#shot'+i).hidden=i!=v)});
+/* session */
+$('#sesSide').addEventListener('click',e=>{const b=e.target.closest('button[data-t]');if(!b)return;$$('button',$('#sesSide')).forEach(x=>x.classList.toggle('on',x===b));$$('#sesPane .tab').forEach(t=>t.classList.toggle('on',t.id==='t-'+b.dataset.t))});
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hl=(s,q)=>{s=esc(s);if(!q)return s;const r=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');return s.replace(r,'<mark>$1</mark>')};
+const TR=[['00:12','them','DANA','Thanks for joining. Let\'s start with your background in distributed systems.'],['00:21','you','YOU','Sure — I\'ve spent the last six years on payments infrastructure, most recently the ledger platform.'],['02:40','them','PRIYA','How did you decide between sharding and a read-through cache?'],['03:05','them','DANA','Tell me about a time you had to scale a system under load.'],['03:19','you','YOU','So the biggest one was Black Friday. Checkout latency climbed and we sharded the ledger by merchant…'],['21:30','them','DANA','What was the pricing model for that platform?']];
+function renderTr(){const q=$('#trq').value.trim().toLowerCase();const r=TR.filter(x=>!q||x[3].toLowerCase().includes(q));$('#trl').innerHTML=r.map(x=>`<div class="tr"><span class="ts">${x[0]}</span><div><span class="who ${x[1]}">${x[2]}</span><br>${hl(x[3],q)}</div></div>`).join('')||'<div style="padding:30px;color:var(--text3)">No matching lines.</div>'}
+$('#trq').oninput=renderTr;renderTr();
+const FU={base:'<b>Subject:</b> Thanks — and next steps<br><br>Hi Dana, Priya,<br><br>Thank you for the conversation today. I enjoyed digging into ledger sharding and the Black Friday scaling story. As promised, I\'ll send my system-design prep notes by Wednesday and a short write-up on the sharding approach.<br><br>Looking forward to Thursday\'s round.<br><br>Best,<br>Alex',short:'<b>Subject:</b> Thanks<br><br>Hi Dana, Priya — thanks for today. I\'ll send the prep notes by Wednesday. See you Thursday.<br><br>Alex',formal:'<b>Subject:</b> Appreciation and next steps<br><br>Dear Ms. Morris and Ms. K.,<br><br>I am grateful for the opportunity to speak with you today. I will forward the requested system-design preparation notes by Wednesday and look forward to the interview on Thursday.<br><br>Sincerely,<br>Alex Chen'};
+$('#fuText').innerHTML=FU.base;$$('[data-fu]').forEach(c=>c.onclick=()=>{$('#fuText').innerHTML=FU[c.dataset.fu];toast('Draft rewritten')});
+$('#expBtn').onclick=e=>{e.stopPropagation();$('#expMenu').hidden=!$('#expMenu').hidden};document.addEventListener('click',()=>$('#expMenu').hidden=true);
+/* history */
+const H=[['Staff Eng interview — Acme Payments','Interview','Today 8:12','Black Friday: checkout latency climbed, sharded the ledger… p99 latency down 4×','mic'],['Weekly product sync','Meeting notes','Yesterday','Decided to defer the latency dashboard to Q1; Priya owns the spike.','doc'],['Discovery call — Northwind','Sales','Fri','Their main concern is onboarding time and API latency at peak.','usr'],['Mock interview: system design','Interview','Thu','Discussed consistent hashing, cache invalidation and tail latency.','mic'],['LeetCode practice: Two Sum','Coding','Wed','Hash map one-pass solution; follow-up on time complexity.','kbd'],['1:1 with Sam','Meeting notes','Mon','Career goals, promotion timeline, on-call load.','doc']];
+function renderH(){const q=$('#hq').value.trim().toLowerCase();const r=H.filter(h=>!q||h.join(' ').toLowerCase().includes(q));
+ $('#hl').innerHTML=r.map(h=>`<div class="hist"><div class="ic"><svg class="i"><use href="#i-${h[4]}"/></svg></div><div class="m"><b>${hl(h[0],q)}</b><span>${hl(h[3],q)}</span></div><span class="pill">${h[1]}</span><span style="color:var(--text3);width:84px;text-align:right">${h[2]}</span></div>`).join('')||'<div style="padding:40px;text-align:center;color:var(--text3)">No sessions match.</div>';
+ $('#hc').textContent=r.length+' result'+(r.length==1?'':'s')}
+$('#hq').oninput=renderH;renderH();
+/* settings */
+const PT={Interview:'You help me answer interview questions live. Answer in first person, ≤ 4 bullets, lead with the result, use STAR for past experience. Use my résumé for facts; never invent employers or numbers.',Sales:'You help me on a sales call. Surface discovery questions, handle objections with empathy, cite the pricing playbook. Keep each suggestion to two sentences.',Coding:'You help me solve coding problems. Give the approach first, then code, then complexity. Use the screenshot text as the problem statement.','Meeting notes':'Stay silent during the meeting. Produce a summary, decisions and action items afterwards. Never suggest answers.'};
+const pt=$('#perText');pt.value=PT.Interview;
+$('#perGrid').addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;$$('.opt',$('#perGrid')).forEach(x=>x.classList.toggle('on',x===o));$('#perTitle').textContent='Editing “'+o.dataset.p+'”';pt.value=PT[o.dataset.p]});
+$('#setSide').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$$('button',$('#setSide')).forEach(x=>x.classList.toggle('on',x===b));$$('#s-settings .tab').forEach(t=>t.classList.toggle('on',t.id==='st-'+b.dataset.t));$('#setTitle').textContent=b.textContent.trim()});
+$$('#st-stt .card:first-of-type .opt, #provOpts').forEach(el=>el.addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;$$('.opt',o.parentElement).forEach(x=>x.classList.toggle('on',x===o))}));
+$$('.seg').forEach(s=>{if(!s.id)seg(s)});
+/* onboarding */
+let ob=1;function obGo(n){ob=Math.max(1,Math.min(4,n));$$('.obstep').forEach((s,i)=>s.classList.toggle('on',i+1==ob));$$('#obDots i').forEach((d,i)=>d.classList.toggle('on',i+1==ob));$('#obBack').style.visibility=ob>1?'visible':'hidden';$('#obNext').textContent=ob==4?'Start using Shadow':'Continue'}
+$('#obNext').onclick=()=>{if(ob==4){obGo(1);toast('Setup complete — Shadow is in your menu bar')}else obGo(ob+1)};$('#obBack').onclick=()=>obGo(ob-1);
+$('#permCheck').onclick=()=>{const p=$('#permA');p.className='pill ok';p.textContent='Granted';toast('Permission detected')};
+fit();{const t=new URLSearchParams(location.search).get('theme');if(t){document.documentElement.dataset.theme=t;$$('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===t))}}
+if(location.hash){const s=location.hash.slice(1);if($('#s-'+s))go(s)}
+</script>
+</body>
+</html>
