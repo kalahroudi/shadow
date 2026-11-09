@@ -9,6 +9,8 @@ public struct AnalyzerClock: Sendable {
     /// (analyzer start, start - session time) for each buffer, oldest first, used to map results back to session time.
     private var history: [(start: TimeInterval, offset: TimeInterval)] = []
     private static let historyLimit = 4096
+    /// Ticks per second of the CMTime the caller builds from the result; starts are snapped up to this grid.
+    public static let timescale: Double = 48_000
 
     public init() {}
 
@@ -18,6 +20,8 @@ public struct AnalyzerClock: Sendable {
         let time = sessionTime.isFinite ? sessionTime : -.infinity
         var result = time > previousEnd ? time : previousEnd
         if !result.isFinite { result = 0 }
+        // CMTime rounds to its timescale; snap up so rounding can never pull a start before the previous end.
+        result = ((result * Self.timescale) - 1e-6).rounded(.up) / Self.timescale
         if frames > 0, sampleRate > 0, sampleRate.isFinite {
             previousEnd = result + Double(frames) / sampleRate
             history.append((result, result - (sessionTime.isFinite ? sessionTime : result)))
