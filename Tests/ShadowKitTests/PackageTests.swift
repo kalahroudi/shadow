@@ -28,6 +28,9 @@ final class PackageTests: XCTestCase {
 
     func testCIBuildsTestsBundlesAndSelfTests() throws {
         let ci = try repoFile(".github/workflows/ci.yml")
+        XCTAssertTrue(ci.contains("runs-on: macos-26"))
+        XCTAssertTrue(ci.contains("permissions:\n  contents: read"), "CI token must be read-only")
+        XCTAssertFalse(ci.contains("secrets."), "CI must not use secrets")
         for step in ["swift build", "swift test", "scripts/bundle.sh", "--self-test", "shadow-mcp --version"] {
             XCTAssertTrue(ci.contains(step), step)
         }
@@ -41,6 +44,14 @@ final class PackageTests: XCTestCase {
                      "Sources/Shadow/UpdatesView.swift", "Sources/Shadow/AgentsView.swift", "Sources/Shadow/ManagerView.swift"] {
             XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent(gone).path), gone)
         }
+    }
+
+    func testAppPathsHasNoUpdateDirectory() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("paths-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try AppPaths(root: root).ensureDirectories()
+        let names = try FileManager.default.contentsOfDirectory(atPath: root.path)
+        XCTAssertEqual(names, ["sessions"])
     }
 
     func testBuildInfoCommitHandling() {
