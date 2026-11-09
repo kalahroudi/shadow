@@ -6,7 +6,7 @@ import Foundation
 /// `detail` is technical and only ever leaves the app through `copyDetails` / `issueURL`, scrubbed.
 public struct UpdateError: Error, Equatable, Sendable {
     public enum Kind: String, Sendable {
-        case offline, rateLimited, checksumMismatch, verificationFailed, badRelease, notWritable, noBuild
+        case offline, rateLimited, checksumMismatch, verificationFailed, badRelease, notWritable, noBuild, identityRefused
     }
     public let kind: Kind
     public let detail: String
@@ -22,6 +22,7 @@ public struct UpdateError: Error, Equatable, Sendable {
         case .badRelease: return "Couldn't read the release information from GitHub. Please try again later."
         case .notWritable: return "Move Shadow to a folder you own, then try updating again."
         case .noBuild: return "This release has no downloadable build yet."
+        case .identityRefused: return "The downloaded update's signature couldn't be checked against this app, so your current version was kept."
         }
     }
 
