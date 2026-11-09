@@ -41,6 +41,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
             }
             defer { watcher.cancel(); onProgress(nil) }
             try await request.downloadAndInstall()
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             AppLog.error(error, context: "download speech assets for \(supported.identifier)")
             throw UserFacingError("Couldn't download the speech model. Check your internet connection and try again.")
@@ -84,6 +86,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
             }
         }
 
+        // Whatever way this ends (error or cancel), stop the results reader and close the analyzer's input.
+        defer { inputContinuation.finish(); results.cancel() }
         try await analyzer.start(inputSequence: inputs)
         var converter: AVAudioConverter?
         for await item in source {

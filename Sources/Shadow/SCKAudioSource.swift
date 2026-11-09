@@ -55,6 +55,7 @@ final class SCKAudioSource: NSObject, AudioSource, SCStreamOutput, SCStreamDeleg
     func stop() async {
         let old = state.withLock { () -> State in defer { current = State() }; return current }
         if let stream = old.stream {
+            try? stream.removeStreamOutput(self, type: .audio)
             do { try await stream.stopCapture() } catch { AppLog.error(error, context: "stop system audio capture") }
         }
         old.continuation?.finish()

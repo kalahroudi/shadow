@@ -148,6 +148,13 @@ final class HostClockTests: XCTestCase {
         XCTAssertEqual(t, 9.5, accuracy: 1e-9)
     }
 
+    func testInvalidHostStampFallsBackToNow() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let clock = SessionClock(start: start)
+        let t = clock.time(hostSeconds: .nan, hostNow: 100, now: start.addingTimeInterval(4))
+        XCTAssertEqual(t, 4)
+    }
+
     func testTwoSourcesShareTheSameOrigin() {
         let start = Date(timeIntervalSince1970: 1_000)
         let clock = SessionClock(start: start)
