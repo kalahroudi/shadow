@@ -36,12 +36,12 @@ final class PackageTests: XCTestCase {
         }
     }
 
-    func testNoUpdaterOrAgentsCodeRemains() throws {
+    func testNoAgentsOrOldUpdateCodeRemains() throws {
         let fm = FileManager.default
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { root.deleteLastPathComponent() }
-        for gone in ["Sources/ShadowKit/Update.swift", "Sources/ShadowKit/Agents.swift", "Sources/Shadow/Updater.swift",
-                     "Sources/Shadow/UpdatesView.swift", "Sources/Shadow/AgentsView.swift", "Sources/Shadow/ManagerView.swift"] {
+        for gone in ["Sources/ShadowKit/Update.swift", "Sources/ShadowKit/Agents.swift",
+                     "Sources/Shadow/AgentsView.swift", "Sources/Shadow/ManagerView.swift"] {
             XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent(gone).path), gone)
         }
     }
