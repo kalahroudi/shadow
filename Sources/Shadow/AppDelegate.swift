@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
+
+        if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }
     }
 
     /// The popover does not follow NSApp.appearance on its own (it takes the menu bar's look), so set it explicitly.

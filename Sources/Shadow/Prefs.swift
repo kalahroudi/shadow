@@ -3,6 +3,7 @@
 import SwiftUI
 import ServiceManagement
 import AppKit
+import ShadowKit
 
 enum ThemeChoice: String, CaseIterable { case system, light, dark
     var label: String { rawValue.capitalized }
@@ -19,10 +20,18 @@ final class Prefs {
     var showDockIcon: Bool { didSet { d.set(showDockIcon, forKey: "showDockIcon"); applyDockIcon() } }
 
     /// Launch at login is on by default; the user can turn it off. Backed by SMAppService (Login Items).
+    /// Show a reminder before capture starts (R20). On by default.
+    var remindBeforeSession: Bool { didSet { d.set(remindBeforeSession, forKey: PrefsDefaults.remindBeforeSession) } }
+    /// First-run flag: onboarding shows until this is set.
+    var onboardingCompleted: Bool { didSet { d.set(onboardingCompleted, forKey: PrefsDefaults.onboardingCompleted) } }
+
     private(set) var launchAtLogin: Bool = false
     private(set) var launchAtLoginError: String?
 
     private init() {
+        PrefsDefaults.register(in: d)
+        remindBeforeSession = d.bool(forKey: PrefsDefaults.remindBeforeSession)
+        onboardingCompleted = d.bool(forKey: PrefsDefaults.onboardingCompleted)
         theme = ThemeChoice(rawValue: d.string(forKey: "theme") ?? "") ?? .system
         showDockIcon = d.bool(forKey: "showDockIcon")
         // First run: opt in to launch at login. After that the user's choice always wins.
@@ -40,7 +49,8 @@ final class Prefs {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             launchAtLoginError = nil
         } catch {
-            launchAtLoginError = "Could not change Login Items: \(error.localizedDescription)"
+            AppLog.error(error, context: "launch at login")
+            launchAtLoginError = "Could not change Login Items. This is expected for an unsigned build."
         }
         refreshLaunchAtLogin()
     }
