@@ -43,9 +43,14 @@ final class PackageTests: XCTestCase {
         let doc = try repoFile("docs/permissions.md")
         for needle in ["kTCCServiceAudioCapture", "Decision: is kTCCServiceAudioCapture needed?", "ad-hoc", "Self-signed",
                        "CGRequestScreenCaptureAccess", "SCShareableContent", "SCStream", "AVCaptureDevice.requestAccess",
-                       "process tap", "scripts/reset-permissions.sh"] {
+                       "process tap", "scripts/reset-permissions.sh", "CGPreflightScreenCaptureAccess", "AVAudioEngine"] {
             XCTAssertTrue(doc.localizedCaseInsensitiveContains(needle), "docs/permissions.md is missing \(needle)")
         }
+        XCTAssertTrue(doc.contains("**Undecided."), "the decision must stay undecided until measured")
+        XCTAssertFalse(doc.contains("Provisional answer: no"), "no unmeasured yes/no answer")
+        let rows = doc.split(separator: "\n").filter { $0.hasPrefix("| `") && $0.contains("TBD") }
+        XCTAssertFalse(rows.isEmpty)
+        for row in rows { XCTAssertFalse(row.contains("granted") || row.contains("listed"), "untested row holds a result: \(row)") }
     }
 
     func testResetScriptIsGuardedAndScopedToShadow() throws {
