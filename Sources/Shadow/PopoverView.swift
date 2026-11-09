@@ -10,6 +10,8 @@ struct PopoverView: View {
             Image(nsImage: AppIcon.image(size: 34)).resizable().frame(width: 34, height: 34)
             Text("Shadow").font(.system(size: 15, weight: .semibold))
             Spacer()
+            Button { OnboardingWindowController.shared.show() } label: { Image(systemName: "questionmark.circle") }
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Run setup again").accessibilityLabel("Run setup again")
             Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Quit Shadow").accessibilityLabel("Quit")
         }
