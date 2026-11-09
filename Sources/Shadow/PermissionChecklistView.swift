@@ -17,9 +17,7 @@ struct PermissionChecklistView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(PermissionKind.allCases, id: \.self) { kind in row(kind) }
-            Text("After granting Screen Recording, macOS may ask you to reopen Shadow.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-            Button("I did it - check again") { refresh() }
+            Button(items.first?.nextSteps.checkAgainTitle ?? "I did it - check again") { refresh() }
         }
         .onAppear { refresh() }
     }
@@ -50,6 +48,7 @@ struct PermissionChecklistView: View {
                     let steps = item.nextSteps
                     Button(steps.revealTitle) { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
                     Text(steps.hint).font(.system(size: 12)).foregroundStyle(.secondary)
+                    if let relaunch = steps.relaunchNote { Text(relaunch).font(.system(size: 12)).foregroundStyle(.secondary) }
                 }
             }.card()
         } else {
