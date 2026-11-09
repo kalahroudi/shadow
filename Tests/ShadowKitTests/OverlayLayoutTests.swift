@@ -43,4 +43,14 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(OverlayState.from(sessionRunning: false), .idle)
         XCTAssertEqual(OverlayState.from(sessionRunning: true), .listening)
     }
+
+    func testRestoredEnforcesMinWidthAndRequiresUsableOverlap() {
+        let s = store()
+        s.save(CGRect(x: 100, y: 300, width: 420, height: 230), for: "A")   // saved in Compact
+        let expanded = s.restored(for: "A", compact: false, visible: screen)
+        XCTAssertEqual(expanded.width, 520)
+        XCTAssertEqual(expanded.minX, 100); XCTAssertEqual(expanded.maxY, 530)
+        s.save(CGRect(x: 1438, y: 300, width: 420, height: 230), for: "B")   // a 2pt sliver on screen
+        XCTAssertEqual(s.restored(for: "B", compact: true, visible: screen), OverlayLayout.defaultFrame(compact: true, in: screen))
+    }
 }

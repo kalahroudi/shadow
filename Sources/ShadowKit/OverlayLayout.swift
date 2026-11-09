@@ -58,7 +58,15 @@ public struct FrameStore {
 
     /// The remembered frame when it still overlaps the screen's visible area, otherwise the default position.
     public func restored(for display: String, compact: Bool, visible: CGRect) -> CGRect {
-        if let saved = frame(for: display), saved.intersects(visible) { return saved }
+        if let saved = frame(for: display) {
+            // A frame saved in the other mode may be narrower than this mode's minimum; keep the top-left and grow it.
+            let min = OverlayLayout.minSize(compact: compact)
+            let fitted = CGRect(x: saved.minX, y: saved.maxY - Swift.max(saved.height, min.height),
+                                width: Swift.max(saved.width, min.width), height: Swift.max(saved.height, min.height))
+            // Usable only if enough of it is on screen to grab and drag (at least a 100x60 corner).
+            let shown = fitted.intersection(visible)
+            if !shown.isNull, shown.width >= 100, shown.height >= 60 { return fitted }
+        }
         return OverlayLayout.defaultFrame(compact: compact, in: visible)
     }
 

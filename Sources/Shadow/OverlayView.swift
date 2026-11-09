@@ -139,6 +139,12 @@ struct OverlayView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// Built here rather than inline so the isolated setter never needs a generic reabstraction thunk.
+    private var opacityBinding: Binding<Double> {
+        let actions = actions, opacity = content.opacity
+        return Binding<Double>(get: { opacity }, set: { newValue in MainActor.assumeIsolated { actions.setOpacity(newValue) } })
+    }
+
     private var footer: some View {
         HStack(spacing: 10) {
             Group {
@@ -154,7 +160,7 @@ struct OverlayView: View {
             .font(.system(size: 11)).foregroundStyle(.secondary)
             Spacer()
             Image(systemName: "circle.lefthalf.filled").font(.system(size: 11)).foregroundStyle(.secondary)
-            Slider(value: Binding(get: { content.opacity }, set: actions.setOpacity), in: OverlayLayout.opacityRange)
+            Slider(value: opacityBinding, in: OverlayLayout.opacityRange)
                 .controlSize(.mini).frame(width: 90).accessibilityLabel("Opacity")
         }
         .padding(.horizontal, 12).padding(.vertical, 7)

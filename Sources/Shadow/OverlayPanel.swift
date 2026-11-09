@@ -77,6 +77,8 @@ final class OverlayController: NSObject, NSWindowDelegate {
         panel.contentView = nil   // release the SwiftUI hierarchy while hidden
         self.panel = nil
         lastCompact = nil
+        // Hiding the overlay always clears click-through, so a shortcut another app owns can't leave it stuck on.
+        AppModel.shared.clickThrough = false
     }
 
     private func setFrame(_ frame: CGRect, on target: OverlayPanel? = nil) {
