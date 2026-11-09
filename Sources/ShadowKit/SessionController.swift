@@ -22,8 +22,12 @@ public actor SessionController {
     private var stopping = false
     private var tasks: [Task<Void, Never>] = []
     private var levels = Levels()
-    private var sinks: [Speaker: AsyncStream<TimedBuffer>.Continuation] = [:]
+    // Audio waiting for a recogniser, per speaker. A restarted analyzer pulls from the same queue, so nothing is dropped across a restart.
+    private var queues: [Speaker: [TimedBuffer]] = [:]
+    private var waiters: [Speaker: (id: UUID, continuation: CheckedContinuation<TimedBuffer?, Never>)] = [:]
+    private var attempts: [Speaker: Int] = [:]
     private var sourceDone: Set<Speaker> = []
+    private var sttGone: Set<Speaker> = []
     private var observers: [UUID: AsyncStream<Levels>.Continuation] = [:]
     private var noticeObservers: [UUID: AsyncStream<String>.Continuation] = [:]
 
@@ -106,43 +110,88 @@ public actor SessionController {
     static let maxRestarts = 3
 
     /// Splits one source into a level meter and a supervised STT consumer; returns the two tasks that run until the source ends.
-    /// The pump feeds whichever sink is current for the speaker, so a restarted analyzer keeps receiving audio.
+    /// Buffers wait in a per-speaker queue that each analyzer attempt pulls from, so a restart loses no queued audio.
     private func run(_ buffers: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> [Task<Void, Never>] {
-        sourceDone.remove(speaker)
+        sourceDone.remove(speaker); sttGone.remove(speaker)
+        queues[speaker] = []
         let pump = Task {
             for await item in buffers {
                 self.setLevel(LevelMeter.level(of: item.buffer), for: speaker)
-                // A dead recogniser's sink is replaced by the supervisor; yielding to a terminated one is harmless.
-                _ = self.sinks[speaker]?.yield(item)
+                self.deliver(item, to: speaker)
             }
-            self.sourceDone.insert(speaker)
-            self.sinks[speaker]?.finish()
+            self.endSource(speaker)
             self.sourceEnded(speaker)
         }
         let consume = Task {
             var restarts = 0
             while true {
-                let (forSTT, sink) = AsyncStream<TimedBuffer>.makeStream()
-                self.sinks[speaker] = sink
-                if self.sourceDone.contains(speaker) { sink.finish() }
+                let attempt = self.beginAttempt(speaker)
+                let forSTT = AsyncStream<TimedBuffer>(unfolding: { await self.nextBuffer(for: speaker, attempt: attempt) })
                 do {
                     for try await segment in self.stt.transcribe(forSTT, speaker: speaker, locale: locale) {
-                        restarts = 0   // a working stream gets a fresh budget (R8)
+                        if segment.isFinal { restarts = 0 }   // only a finished segment earns a fresh budget (R8)
                         await self.transcript.add(segment)
                         if segment.isFinal { await self.checkpoint() }
                     }
+                    self.sttStopped(speaker)
                     return
                 } catch {
                     guard STTFailure.isRecoverable(error), restarts < Self.maxRestarts, self.session != nil else {
+                        self.sttStopped(speaker)
                         self.speechFailed(speaker, error, locale: locale)
                         return
                     }
                     restarts += 1
                     AppLog.speechError(error, context: "restart \(restarts)/\(Self.maxRestarts) transcribe \(speaker.rawValue)", locale: locale)
+                    // The new analyzer never sees the old one's words, and a final would replace this partial, so keep it as a final.
+                    await self.transcript.flushPartial(for: speaker)
                 }
             }
         }
         return [pump, consume]
+    }
+
+    private func deliver(_ item: TimedBuffer, to speaker: Speaker) {
+        guard !sttGone.contains(speaker) else { return }   // nobody will read it; don't let audio pile up
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: item) }
+        else { queues[speaker, default: []].append(item) }
+    }
+
+    private func endSource(_ speaker: Speaker) {
+        sourceDone.insert(speaker)
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: nil) }
+    }
+
+    /// Starts a new analyzer attempt; an older attempt's pending read ends and it can no longer take audio.
+    private func beginAttempt(_ speaker: Speaker) -> Int {
+        let n = (attempts[speaker] ?? 0) + 1
+        attempts[speaker] = n
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: nil) }
+        return n
+    }
+
+    private func sttStopped(_ speaker: Speaker) {
+        sttGone.insert(speaker)
+        queues[speaker] = []
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: nil) }
+    }
+
+    private func nextBuffer(for speaker: Speaker, attempt: Int) async -> TimedBuffer? {
+        guard attempts[speaker] == attempt, !sttGone.contains(speaker) else { return nil }
+        if !(queues[speaker] ?? []).isEmpty { return queues[speaker]!.removeFirst() }
+        if sourceDone.contains(speaker) { return nil }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (c: CheckedContinuation<TimedBuffer?, Never>) in
+                if Task.isCancelled { c.resume(returning: nil) } else { waiters[speaker] = (id, c) }
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(speaker, id) }
+        }
+    }
+
+    private func cancelWaiter(_ speaker: Speaker, _ id: UUID) {
+        if let w = waiters[speaker], w.id == id { waiters[speaker] = nil; w.continuation.resume(returning: nil) }
     }
 
     /// Saves the finals so far, so an unclean exit can offer them back (R22).
