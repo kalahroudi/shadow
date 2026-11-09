@@ -74,4 +74,17 @@ final class AnalyzerClockTests: XCTestCase {
         XCTAssertEqual(a.start(sessionTime: 5, frames: 10, sampleRate: 48_000), 11, accuracy: 1e-9)
         XCTAssertEqual(b.start(sessionTime: 0.5, frames: 10, sampleRate: 48_000), 1, accuracy: 1e-9)
     }
+
+    /// CMTime rounds to 1/48000; at 44.1 kHz buffer ends fall between ticks and must not round back into the previous buffer.
+    func testStartsSurviveCMTimeRoundingWithoutOverlap() {
+        var clock = AnalyzerClock()
+        let rate = 44_100.0, frames = 1000
+        var prevEnd = -Double.infinity
+        for i in 0..<2000 {
+            let s = clock.start(sessionTime: Double(i) * 0.02, frames: frames, sampleRate: rate)
+            let ticks = (s * AnalyzerClock.timescale).rounded()
+            XCTAssertGreaterThanOrEqual(ticks / AnalyzerClock.timescale, prevEnd - 1e-12, "buffer \(i)")
+            prevEnd = ticks / AnalyzerClock.timescale + Double(frames) / rate
+        }
+    }
 }

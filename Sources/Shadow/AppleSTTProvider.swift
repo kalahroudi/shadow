@@ -126,9 +126,9 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         var converter: AVAudioConverter?
         for await item in source {
             if failure.value != nil { break }
-            guard let buffer = convert(item.buffer, to: target, using: &converter) else { continue }
+            guard let buffer = convert(item.buffer, to: target, using: &converter), buffer.frameLength > 0 else { continue }
             let start = clock.start(sessionTime: item.time, frames: Int(buffer.frameLength), sampleRate: buffer.format.sampleRate)
-            inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: start, preferredTimescale: 48_000)))
+            inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: start, preferredTimescale: CMTimeScale(AnalyzerClock.timescale))))
         }
         inputContinuation.finish()
         if failure.value == nil { try await analyzer.finalizeAndFinishThroughEndOfInput() }
