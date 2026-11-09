@@ -345,6 +345,31 @@ final class AnswerCoordinatorTests: XCTestCase {
         XCTAssertTrue(a.truncated)
     }
 
+    func testAnswerExactlyAtCapIsNotMarkedTruncated() async {
+        let p = FakeLLMProvider(deltas: ["0123456789"])
+        let c = make(p, cap: 10)
+        turnsList = [seg(.them, "Why?")]
+        c.answerNow(); await done(c)
+        guard case .answering(let a) = c.state else { return XCTFail() }
+        XCTAssertEqual(a.text.count, 10)
+        XCTAssertFalse(a.truncated)
+    }
+
+    func testAnswerNowCancelsPendingAutoSuggestDebounce() async {
+        auto = true
+        let p = FakeLLMProvider(deltas: ["A"])
+        let c = make(p)
+        let q = [seg(.them, "What is your biggest weakness?", start: 1)]
+        turnsList = q
+        c.transcriptChanged(snapshot(q))
+        await settle(clock, sleepers: 1)
+        c.answerNow(); await done(c)
+        XCTAssertEqual(clock.sleeperCount, 0, "the pending auto-suggest is dropped")
+        clock.advance(by: .seconds(5))
+        try? await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(p.requests.count, 1, "the question is answered once")
+    }
+
     func testLogsHoldNoPromptOrAnswerText() async {
         let p = FakeLLMProvider(deltas: ["SECRETANSWERTEXT"], failure: nil)
         let c = make(p)

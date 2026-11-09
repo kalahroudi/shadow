@@ -179,6 +179,7 @@ public final class AnswerCoordinator {
 
     private func start(question: String) {
         cancelStream()
+        cancelDebounce()   // a manual answer must not be replaced by a pending auto-suggest for the same question
         let id = settings.selectedProviderID
         guard let provider = makeProvider(id) else {
             state = .failed(LLMError(.unavailable).message, partial: nil); return
@@ -223,7 +224,7 @@ public final class AnswerCoordinator {
     private func append(_ delta: String) -> Bool {
         guard case .answering(var a) = state else { return true }
         let room = cap - a.text.count
-        if delta.count >= room {
+        if delta.count > room {
             a.text += delta.prefix(max(0, room)); a.truncated = true
             state = .answering(a)
             return true
