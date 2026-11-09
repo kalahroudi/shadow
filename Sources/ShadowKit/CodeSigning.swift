@@ -60,7 +60,7 @@ public enum DesignatedRequirement {
         } else if !apple, scanner.take(" and certificate leaf = H\""), let hash = scanner.hex(), scanner.take("\"") {
             guard hash.count == 40 else { throw bad() }
             kind = .selfSigned(leafSHA1: hash)
-        } else if apple, scanner.take(" and certificate leaf[subject.OU] = "), let team = scanner.quoted(), !team.isEmpty {
+        } else if apple, scanner.take(" and certificate leaf[subject.OU] = "), let team = scanner.quoted() ?? scanner.word(), !team.isEmpty {
             kind = .developerID(teamID: team)
         } else {
             throw bad()
@@ -96,6 +96,12 @@ public enum DesignatedRequirement {
                 } else { out.append(c); j += 1 }
             }
             return nil
+        }
+        /// An unquoted alphanumeric token: the Security framework prints team IDs without quotes.
+        mutating func word() -> String? {
+            var out = ""
+            while i < chars.count, chars[i].isASCII, chars[i].isLetter || chars[i].isNumber { out.append(chars[i]); i += 1 }
+            return out.isEmpty ? nil : out
         }
         mutating func hex() -> String? {
             var out = ""

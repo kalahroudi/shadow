@@ -91,4 +91,11 @@ final class CodeSigningTests: XCTestCase {
             XCTAssertFalse(text.contains("\"codesign\"") || text.contains("Process("), file)
         }
     }
+
+    /// `SecRequirementCopyString` prints a team ID without quotes.
+    func testParsesUnquotedTeamID() throws {
+        let p = try DesignatedRequirement.parse("anchor apple generic and identifier \"com.x.a\" and certificate leaf[subject.OU] = ABCDE12345")
+        XCTAssertEqual(p.kind, .developerID(teamID: "ABCDE12345"))
+        XCTAssertThrowsError(try DesignatedRequirement.parse("anchor apple generic and identifier \"a\" and certificate leaf[subject.OU] = AB CD"))
+    }
 }

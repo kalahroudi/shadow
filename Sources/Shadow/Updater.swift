@@ -140,7 +140,8 @@ final class Updater {
             }, swap: {
                 Task { @MainActor in Updater.shared.state = .relaunching }
                 PermissionLossCheck.record(checker: SystemPermissionChecker(), paths: paths)
-                try UpdateSwap(installedApp: installed, stagedApp: staged, paths: paths).launch(version: update.version)
+                do { try UpdateSwap(installedApp: installed, stagedApp: staged, paths: paths).launch(version: update.version) }
+                catch { PermissionLossCheck.discard(paths: paths); throw error }
             })
             if outcome == .cancelled {
                 // Cancel leaves the installed app untouched; the staged copy is deleted.

@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             model.session.showNotice(notice.text)
         }
         if PermissionLossCheck.checkOnce(checker: model.checker, paths: paths) {   // once per update (R25)
-            model.session.recheckPermissions()   // opens the existing checklist
+            model.openChecklist()   // recheckPermissions only closes the checklist, so open it explicitly
             model.session.showNotice(PermissionLossCheck.message)
             model.session.onNeedPopover?()
         }

@@ -27,6 +27,9 @@ public enum PermissionLossCheck {
         try? data.write(to: paths.permissionSnapshotFile, options: .atomic)
     }
 
+    /// Drops a snapshot whose swap never happened, so a later ordinary launch is not mistaken for an update.
+    public static func discard(paths: AppPaths) { try? FileManager.default.removeItem(at: paths.permissionSnapshotFile) }
+
     /// True if a recorded permission went from granted to not granted. Removes the record, so it answers once.
     public static func checkOnce(checker: PermissionChecker, paths: AppPaths) -> Bool {
         let file = paths.permissionSnapshotFile

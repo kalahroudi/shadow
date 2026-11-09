@@ -39,4 +39,9 @@ final class PermissionLossTests: XCTestCase {
     func testNoRecordMeansNoLoss() {
         XCTAssertFalse(PermissionLossCheck.checkOnce(checker: FakeChecker(screen: .notGranted, mic: .notGranted), paths: paths))
     }
+    func testDiscardedSnapshotIsNoLoss() {
+        PermissionLossCheck.record(checker: FakeChecker(screen: .granted, mic: .granted), paths: paths)
+        PermissionLossCheck.discard(paths: paths)
+        XCTAssertFalse(PermissionLossCheck.checkOnce(checker: FakeChecker(screen: .notGranted, mic: .notGranted), paths: paths))
+    }
 }
