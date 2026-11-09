@@ -43,29 +43,46 @@ jobs:
           NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
           NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+          SIGNING_P12_BASE64: ${{ secrets.SIGNING_P12_BASE64 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
         run: |
+          # Precedence: Developer ID + notarization, then the self-signed "Shadow Signing" p12, then ad-hoc.
+          KIND=adhoc
+          P12_B64=""; P12_PW=""
           if [ -n "$SIGN_IDENTITY_SECRET" ] && [ -n "$SIGN_CERT_P12" ] && [ -n "$SIGN_CERT_PASSWORD" ] \
              && [ -n "$NOTARY_APPLE_ID" ] && [ -n "$NOTARY_TEAM_ID" ] && [ -n "$NOTARY_PASSWORD" ]; then
+            KIND=developerid; P12_B64="$SIGN_CERT_P12"; P12_PW="$SIGN_CERT_PASSWORD"
+          elif [ -n "$SIGNING_P12_BASE64" ] && [ -n "$SIGNING_P12_PASSWORD" ]; then
+            KIND=selfsigned; P12_B64="$SIGNING_P12_BASE64"; P12_PW="$SIGNING_P12_PASSWORD"
+          fi
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+          if [ "$KIND" != adhoc ]; then
             KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
             KEYCHAIN_PASSWORD="$(uuidgen)"
-            echo "$SIGN_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            echo "::add-mask::$KEYCHAIN_PASSWORD"
+            echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
+            security list-keychains -d user | tr -d ' "' > "$RUNNER_TEMP/keychains.txt"
+            echo "$P12_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
             security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
             security set-keychain-settings -lut 21600 "$KEYCHAIN"
             security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-            security import "$RUNNER_TEMP/cert.p12" -P "$SIGN_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-            security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-            security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+            security import "$RUNNER_TEMP/cert.p12" -P "$P12_PW" -T /usr/bin/codesign -t cert -f pkcs12 -k "$KEYCHAIN" >/dev/null
+            security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+            security list-keychains -d user -s "$KEYCHAIN" $(cat "$RUNNER_TEMP/keychains.txt")
             rm -f "$RUNNER_TEMP/cert.p12"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$KIND" = developerid ]; then
+            echo "identity=$SIGN_IDENTITY_SECRET" >> "$GITHUB_OUTPUT"
+          elif [ "$KIND" = selfsigned ]; then
+            echo "identity=Shadow Signing" >> "$GITHUB_OUTPUT"
           else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "identity=-" >> "$GITHUB_OUTPUT"
           fi
       - name: Bundle
         env:
-          SIGNED: ${{ steps.sign.outputs.signed }}
-          SIGN_IDENTITY_SECRET: ${{ secrets.SIGN_IDENTITY }}
+          SIGNING_IDENTITY: ${{ steps.sign.outputs.identity }}
+          SIGNING_KEYCHAIN: ${{ steps.sign.outputs.keychain }}
         run: |
-          if [ "$SIGNED" = "true" ]; then export SIGNING_IDENTITY="$SIGN_IDENTITY_SECRET"; fi
           APP_REPO=$GITHUB_REPOSITORY scripts/bundle.sh "${{ steps.ver.outputs.version }}"
       - name: Create DMG
         run: |
@@ -75,7 +92,7 @@ jobs:
           ln -s /Applications dmgroot/Applications
           hdiutil create -volname Shadow -srcfolder dmgroot -ov -format UDZO "release/Shadow-$VERSION.dmg"
       - name: Notarize
-        if: steps.sign.outputs.signed == 'true'
+        if: steps.sign.outputs.kind == 'developerid'
         env:
           NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
@@ -91,11 +108,21 @@ jobs:
           cat SHA256SUMS
       - name: Publish release
         env:
-          SIGNED: ${{ steps.sign.outputs.signed }}
+          KIND: ${{ steps.sign.outputs.kind }}
         run: |
-          if [ "$SIGNED" = "true" ]; then
-            NOTE="Signed with a Developer ID certificate and notarized."
-          else
-            NOTE="This build is ad-hoc signed and not notarized. On first launch, right-click Shadow.app and choose Open once."
-          fi
+          case "$KIND" in
+            developerid) NOTE="Signed with a Developer ID certificate and notarized. Permissions carry over from earlier builds signed the same way." ;;
+            selfsigned) NOTE="Signed with the self-signed Shadow Signing identity and not notarized. On first launch, right-click Shadow.app and choose Open once. Screen Recording and Microphone permissions carry over between builds signed with this identity." ;;
+            *) NOTE="This build is ad-hoc signed and not notarized, so macOS permissions (Screen Recording, Microphone) will reset on every update. On first launch, right-click Shadow.app and choose Open once." ;;
+          esac
           gh release create "$TAG" release/*.dmg release/SHA256SUMS --title "Shadow ${TAG#v}" --generate-notes --notes "$NOTE"
+      - name: Remove signing keychain
+        if: always()
+        env:
+          KEYCHAIN: ${{ steps.sign.outputs.keychain }}
+        run: |
+          if [ -n "$KEYCHAIN" ]; then
+            if [ -f "$RUNNER_TEMP/keychains.txt" ]; then security list-keychains -d user -s $(cat "$RUNNER_TEMP/keychains.txt") || true; fi
+            security delete-keychain "$KEYCHAIN" || true
+          fi
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/keychains.txt"
