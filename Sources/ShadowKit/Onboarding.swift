@@ -118,6 +118,10 @@ public enum PrefsDefaults {
     public static let lastUpdateCheck = "lastUpdateCheck"
     public static let lastUpdateRetryAfter = "lastUpdateRetryAfter"
 
+    /// One boolean per permission: Shadow saw it granted at some point (R8). Nothing else is stored.
+    public static let permissionGrantedScreen = "permissionGranted.screen"
+    public static let permissionGrantedMicrophone = "permissionGranted.microphone"
+
     public static func register(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [remindBeforeSession: true, onboardingCompleted: false, autoUpdateChecks: true, localOnly: false, autoSuggest: false])
     }
