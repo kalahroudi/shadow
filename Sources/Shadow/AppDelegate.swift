@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let model = AppModel.shared
         model.onRunningChange = { [weak self] running in self?.statusItem.button?.image = StatusIcon.image(.from(sessionRunning: running)) }
         model.onOpenSettings = { [weak self] in self?.popover.performClose(nil); SettingsWindowController.shared.show() }
+        model.onOpenUpdates = { [weak self] in self?.openUpdates(check: false) }
         model.onNeedPopover = { [weak self] in self?.showPopover() }
         HotkeyCenter.shared.onAction = { model.handle($0) }
         model.reportHotkeyConflicts(HotkeyCenter.shared.register(Prefs.shared.hotkeys).keys)
@@ -44,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func finishUpdateHandoff(_ model: AppModel) {
         let paths = AppPaths()
         if let notice = UpdateHandoff.cleanup(paths: paths, currentVersion: BuildInfo.current.version) { model.session.showNotice(notice.text) }
+        Task { await Updater.shared.launchCheckIfDue() }   // once, only when due; no timer (R1, R3)
         Task { await UpdateHandoff.confirmLaunch(paths: paths, isAlive: { true }) }   // one-shot; a quit ends the task before it writes
     }
 
@@ -58,12 +60,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             let m = NSMenu()
             let settings = m.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
             settings.target = self
+            let updates = m.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+            updates.target = self
             m.addItem(withTitle: "Quit Shadow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             statusItem.menu = m; statusItem.button?.performClick(nil); statusItem.menu = nil   // menu only for this click
         } else { togglePopover() }
     }
 
     @objc private func openSettings() { SettingsWindowController.shared.show() }
+    @objc private func checkForUpdates() { openUpdates(check: true) }
+
+    private func openUpdates(check: Bool) {
+        popover.performClose(nil)
+        SettingsWindowController.shared.show(pane: .updates)
+        if check { Task { await Updater.shared.checkNow() } }
+    }
 
     private func togglePopover() {
         if popover.isShown { popover.performClose(nil) } else { showPopover() }

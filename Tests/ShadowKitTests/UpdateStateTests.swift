@@ -45,4 +45,27 @@ final class UpdateStateTests: XCTestCase {
         XCTAssertTrue(d.bool(forKey: PrefsDefaults.autoUpdateChecks))
         XCTAssertFalse(d.bool(forKey: PrefsDefaults.localOnly))
     }
+
+    func testPopoverRowShowsOnlyForAvailable() {
+        XCTAssertTrue(UpdateState.available(update).showsPopoverRow)
+        for s in [UpdateState.idle, .checking, .upToDate, .noBuild, .developmentBuild, .pausedLocalOnly, .relaunching,
+                  .installing(.downloading, 0), .failed(UpdateError(.offline))] {
+            XCTAssertFalse(s.showsPopoverRow, "\(s)")
+        }
+    }
+
+    func testLaunchCheckDueRules() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        func due(auto: Bool = true, last: TimeInterval?, retry: TimeInterval? = nil) -> Bool {
+            UpdateSchedule.launchCheckDue(autoChecks: auto, lastSuccess: last.map { now.addingTimeInterval(-$0) },
+                                          retryAfter: retry.map { now.addingTimeInterval($0) }, now: now)
+        }
+        XCTAssertTrue(due(last: nil), "never checked")
+        XCTAssertTrue(due(last: 24 * 3600 + 1))
+        XCTAssertFalse(due(last: 24 * 3600 - 1))
+        XCTAssertFalse(due(last: 24 * 3600))
+        XCTAssertFalse(due(auto: false, last: nil), "automatic checks off")
+        XCTAssertFalse(due(last: nil, retry: 600), "rate-limit wait active")
+        XCTAssertTrue(due(last: nil, retry: -1), "rate-limit wait over")
+    }
 }

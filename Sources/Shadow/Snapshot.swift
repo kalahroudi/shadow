@@ -60,6 +60,10 @@ enum SnapshotMode {
             all.append(overlay(.listening, compact: true, dark: dark))
             all.append(overlay(.listening, compact: false, dark: dark))
             all.append(Shot(name: "popover" + sfx, dark: dark, size: CGSize(width: 360, height: 480)) { AnyView(PopoverView()) })
+            all.append(Shot(name: "popover-update-available" + sfx, dark: dark, size: CGSize(width: 360, height: 520)) {
+                Updater.shared.showSample(.sample)
+                return AnyView(PopoverView())
+            })
             for pane in SettingsPane.allCases {
                 all.append(Shot(name: "settings-\(pane.rawValue)" + sfx, dark: dark, size: CGSize(width: 640, height: 480)) { AnyView(SettingsView(pane: pane)) })
             }

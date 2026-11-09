@@ -41,6 +41,9 @@ struct PopoverView: View {
             .card(padding: 10)
             Divider()
             VStack(spacing: 0) {
+                if Updater.shared.state.showsPopoverRow {
+                    button(icon: "arrow.down.circle", title: "Update available", trailing: Updater.shared.state.availableUpdate?.version) { model.onOpenUpdates?() }
+                }
                 button(icon: "questionmark.circle", title: "Run setup again…", trailing: nil) { OnboardingWindowController.shared.show() }
                 button(icon: "gearshape", title: "Settings…", trailing: "⌘,") { model.onOpenSettings?() }
                 button(icon: "power", title: "Quit Shadow", trailing: "⌘Q") { NSApp.terminate(nil) }
