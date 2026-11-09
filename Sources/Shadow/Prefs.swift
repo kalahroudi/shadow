@@ -25,6 +25,11 @@ final class Prefs {
     /// First-run flag: onboarding shows until this is set.
     var onboardingCompleted: Bool { didSet { d.set(onboardingCompleted, forKey: PrefsDefaults.onboardingCompleted) } }
 
+    /// Check for updates at launch (R1, R14). On by default.
+    var autoUpdateChecks: Bool { didSet { d.set(autoUpdateChecks, forKey: PrefsDefaults.autoUpdateChecks) } }
+    /// Local-only mode (R18): Shadow never contacts GitHub. Off by default.
+    var localOnly: Bool { didSet { d.set(localOnly, forKey: PrefsDefaults.localOnly) } }
+
     /// Popover choices (R17). They take effect immediately. Persona is UI only in milestone 1.
     var persona: Persona { didSet { d.set(persona.rawValue, forKey: "persona") } }
     var language: Language { didSet { d.set(language.rawValue, forKey: "language") } }
@@ -62,6 +67,8 @@ final class Prefs {
         PrefsDefaults.register(in: d)
         remindBeforeSession = d.bool(forKey: PrefsDefaults.remindBeforeSession)
         onboardingCompleted = d.bool(forKey: PrefsDefaults.onboardingCompleted)
+        autoUpdateChecks = d.bool(forKey: PrefsDefaults.autoUpdateChecks)
+        localOnly = d.bool(forKey: PrefsDefaults.localOnly)
         persona = Persona(rawValue: d.string(forKey: "persona") ?? "") ?? .default
         micDeviceID = d.string(forKey: PrefsDefaults.micDeviceID) ?? ""
         language = Language(rawValue: d.string(forKey: "language") ?? "") ?? .auto
