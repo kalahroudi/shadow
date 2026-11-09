@@ -12,7 +12,15 @@ struct PopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            if model.showChecklist { PermissionChecklistView(checker: model.checker) { model.recheckPermissions() } } else { startButton }
+            if model.showChecklist { PermissionChecklistView(center: model.permissions) { model.recheckPermissions() } } else {
+                startButton
+                if model.needsPermissionsRow {
+                    Button { model.openChecklist() } label: {
+                        Label(PermissionCenter.neededRowTitle, systemImage: "exclamationmark.triangle").font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.warn).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                }
+            }
             ForEach(model.notices) { notice in
                 HStack(alignment: .top, spacing: 6) {
                     Text(notice.text).font(.system(size: 12)).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true)

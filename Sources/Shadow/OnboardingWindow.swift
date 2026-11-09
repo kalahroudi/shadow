@@ -32,7 +32,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 }
 
 struct OnboardingView: View {
-    let checker: PermissionChecker
+    let center: PermissionCenter
     let onFinish: () -> Void
     @State private var model: OnboardingModel
     @State private var prefs = Prefs.shared
@@ -41,7 +41,7 @@ struct OnboardingView: View {
     @State private var checking = false
 
     init(checker: PermissionChecker, step: OnboardingModel.Step = .welcome, onFinish: @escaping () -> Void) {
-        self.checker = checker
+        center = PermissionCenter(checker: checker, registrar: SystemPermissionRegistrar())
         self.onFinish = onFinish
         _model = State(initialValue: OnboardingModel(startingAt: step))
     }
@@ -104,7 +104,7 @@ struct OnboardingView: View {
     private var permissions: some View {
         VStack(alignment: .leading) {
             title("Two permissions", "macOS will ask. Shadow only listens while a session is running.")
-            PermissionChecklistView(checker: checker)
+            PermissionChecklistView(center: center)
         }
     }
 

@@ -4,31 +4,21 @@ import AVFoundation
 import CoreGraphics
 import ShadowKit
 
-/// The real permission checker. Screen recording only reports a yes/no, so "not yet asked" is tracked by a flag.
+/// The real permission checker. Screen recording only reports a yes/no, so a flag picks the wording "Not asked yet" or "Not granted".
+/// The flag never decides whether Allow is offered.
 struct SystemPermissionChecker: PermissionChecker {
-    private static let askedScreenKey = "askedScreenRecording"
+    static let askedScreenKey = "askedScreenRecording"
 
     func status(_ kind: PermissionKind) -> PermissionState {
         switch kind {
         case .microphone:
-            switch AVCaptureDevice.authorizationStatus(for: .audio) {
-            case .authorized: return .granted
-            case .notDetermined: return .notYetAsked
-            default: return .notGranted
-            }
+            return Checklist.state(fromAuthorization: AVCaptureDevice.authorizationStatus(for: .audio))
         case .screen:
             if CGPreflightScreenCaptureAccess() { return .granted }
             return UserDefaults.standard.bool(forKey: Self.askedScreenKey) ? .notGranted : .notYetAsked
         }
     }
 
-    func request(_ kind: PermissionKind) async -> PermissionState {
-        switch kind {
-        case .microphone: _ = await AVCaptureDevice.requestAccess(for: .audio)
-        case .screen:
-            UserDefaults.standard.set(true, forKey: Self.askedScreenKey)
-            _ = CGRequestScreenCaptureAccess()
-        }
-        return status(kind)
-    }
+    /// Registration lives in `SystemPermissionRegistrar`; this only re-reads.
+    func request(_ kind: PermissionKind) async -> PermissionState { status(kind) }
 }

@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         OverlayController.shared.refresh()
         if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }
+        Task { await model.permissions.registerOnLaunch(onboardingCompleted: Prefs.shared.onboardingCompleted) }   // once per launch (R5)
         finishUpdateHandoff(model)
     }
 
@@ -48,6 +49,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if let notice = UpdateHandoff.cleanup(paths: paths, currentVersion: BuildInfo.current.version) {
             Updater.shared.handoffText = notice.text
             model.session.showNotice(notice.text)
+        }
+        if PermissionLossCheck.checkOnce(checker: model.checker, paths: paths) {   // once per update (R25)
+            model.openChecklist()   // recheckPermissions only closes the checklist, so open it explicitly
+            model.session.showNotice(PermissionLossCheck.message)
+            model.session.onNeedPopover?()
         }
         Task { await Updater.shared.launchCheckIfDue() }   // once, only when due; no timer (R1, R3)
         Task { await UpdateHandoff.confirmLaunch(paths: paths, isAlive: { true }) }   // one-shot; a quit ends the task before it writes

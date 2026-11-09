@@ -3,6 +3,21 @@
 import AppKit
 import ShadowKit
 
+/// The real "different identity" prompt (R24).
+struct AlertUpdateConfirmer: UpdateConfirming {
+    func confirmIdentityChange() async -> Bool {
+        await MainActor.run {
+            let alert = NSAlert()
+            alert.messageText = "Update with a different signing identity?"
+            alert.informativeText = UpdateGate.confirmText
+            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: UpdateGate.confirmButton)
+            NSApp.activate(ignoringOtherApps: true)
+            return alert.runModal() == .alertSecondButtonReturn
+        }
+    }
+}
+
 /// Owns what the Updates pane shows and runs checks and installs. It does nothing on its own: no timer, no polling (R3).
 /// A check or install starts only from a user action, and never when Local-only is on or in a development build (R5, R18).
 @MainActor @Observable
@@ -12,6 +27,8 @@ final class Updater {
     private(set) var state: UpdateState
     /// "Updated to X" or the scrubbed rollback reason from the last hand-off, shown in the Updates pane (R13).
     var handoffText: String?
+    /// What the last update decision said about permissions, or what the installed build implies (R16, R24).
+    private(set) var permissionsNote: UpdateDecision.Note?
     private let defaults = UserDefaults.standard
     private let build = BuildInfo.current
     private let bundleURL = Bundle.main.bundleURL
@@ -19,7 +36,12 @@ final class Updater {
     /// The check or install in flight, so Local-only can cancel it (R18).
     private var running: Task<Void, Never>?
 
-    private init() { state = .idle; refreshGate() }
+    private init() {
+        state = .idle
+        // An ad-hoc installed build resets permissions on every update; say so before any update is tried (R16).
+        if let id = try? SecurityFrameworkInspector().identity(of: bundleURL), !id.kind.isStable { permissionsNote = .permissionsWillReset }
+        refreshGate()
+    }
 
     var lastChecked: Date? { defaults.object(forKey: PrefsDefaults.lastUpdateCheck) as? Date }
     var versionLine: String { UpdatesCopy.versionLine(build) }
@@ -111,8 +133,21 @@ final class Updater {
                 }
             }
             try Task.checkCancellation()   // Local-only may have been turned on during the last step
-            state = .relaunching
-            try UpdateSwap(installedApp: bundleURL, stagedApp: staged, paths: paths).launch(version: update.version)
+            let gate = UpdateGate(confirmer: AlertUpdateConfirmer())
+            let installed = bundleURL
+            let outcome = try await gate.run(installed: installed, staged: staged, onNote: { note in
+                Task { @MainActor in Updater.shared.permissionsNote = note }
+            }, swap: {
+                Task { @MainActor in Updater.shared.state = .relaunching }
+                PermissionLossCheck.record(checker: SystemPermissionChecker(), paths: paths)
+                do { try UpdateSwap(installedApp: installed, stagedApp: staged, paths: paths).launch(version: update.version) }
+                catch { PermissionLossCheck.discard(paths: paths); throw error }
+            })
+            if outcome == .cancelled {
+                // Cancel leaves the installed app untouched; the staged copy is deleted.
+                try? FileManager.default.removeItem(at: paths.updatesDir)
+                state = .available(update); return
+            }
             NSApp.terminate(nil)
         } catch {
             if UpdateCancellation.isCancellation(error) || Task.isCancelled {

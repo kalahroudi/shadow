@@ -87,6 +87,14 @@ public enum UpdatesCopy {
         }
     }
 
+    /// The permissions line for the Updates pane (R16, R24).
+    public static func permissionsNote(_ note: UpdateDecision.Note) -> String {
+        switch note {
+        case .permissionsCarryOver: "Permissions will carry over"
+        case .permissionsWillReset: "This build is not signed with a stable identity, so Screen Recording and Microphone access will need to be granted again after each update."
+        }
+    }
+
     public static func lastChecked(_ date: Date?) -> String {
         guard let date else { return "Never" }
         return date.formatted(date: .abbreviated, time: .shortened)

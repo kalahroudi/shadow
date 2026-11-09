@@ -12,7 +12,8 @@ final class OnboardingTests: XCTestCase {
     func testChecklistForEveryCombination() {
         let states: [PermissionState] = [.granted, .notGranted, .notYetAsked]
         for mic in states { for screen in states {
-            let items = Checklist.items(using: FakeChecker(mic: mic, screen: screen))
+          for history in [Set<PermissionKind>(), [.screen], [.microphone], [.screen, .microphone]] {
+            let items = Checklist.items(using: FakeChecker(mic: mic, screen: screen), grantedBefore: history)
             var expected: [PermissionKind] = []
             if screen != .granted { expected.append(.screen) }
             if mic != .granted { expected.append(.microphone) }
@@ -20,10 +21,41 @@ final class OnboardingTests: XCTestCase {
             for i in items {
                 XCTAssertTrue(i.settingsURL.hasPrefix("x-apple.systempreferences:"))
                 XCTAssertFalse(i.explanation.isEmpty)
-                XCTAssertEqual(i.canRequest, i.state == .notYetAsked)
+                XCTAssertTrue(i.canRequest)   // R1: Allow in every state and history
                 XCTAssertEqual(i.note != nil, i.kind == .screen)   // only screen recording needs the relaunch note
+                XCTAssertEqual(i.isStale, history.contains(i.kind))
             }
+          }
         } }
+    }
+
+    // A3
+    func testNextStepsContent() {
+        let items = Checklist.items(mic: .notGranted, screen: .notGranted)
+        let screen = items[0].nextSteps, mic = items[1].nextSteps
+        XCTAssertEqual(screen.settingsURL, "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        XCTAssertEqual(mic.settingsURL, "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        XCTAssertEqual(screen.revealTitle, "Reveal Shadow.app in Finder")
+        XCTAssertEqual(screen.hint, "If Shadow is not in the list, click + and add it, or drag Shadow.app into the list")
+        XCTAssertEqual(screen.checkAgainTitle, "I did it - check again")
+        XCTAssertNotNil(screen.relaunchNote)
+        XCTAssertNil(mic.relaunchNote)
+    }
+
+    // A7
+    func testMicStateMapping() {
+        XCTAssertEqual(Checklist.state(fromAuthorization: .notDetermined), .notYetAsked)
+        XCTAssertEqual(Checklist.state(fromAuthorization: .authorized), .granted)
+        XCTAssertEqual(Checklist.state(fromAuthorization: .denied), .notGranted)
+        XCTAssertEqual(Checklist.state(fromAuthorization: .restricted), .notGranted)
+    }
+
+    func testStatusLabelIsWordingOnly() {
+        let asked = Checklist.items(mic: .granted, screen: .notGranted)[0]
+        let fresh = Checklist.items(mic: .granted, screen: .notYetAsked)[0]
+        XCTAssertEqual(asked.statusLabel, "Not granted")
+        XCTAssertEqual(fresh.statusLabel, "Not asked yet")
+        XCTAssertEqual(asked.canRequest, fresh.canRequest)
     }
 
     // A8: step order, Back/Continue, consent gating

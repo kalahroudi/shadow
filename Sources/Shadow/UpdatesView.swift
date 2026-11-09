@@ -36,6 +36,9 @@ struct UpdatesPane: View {
                 Divider()
                 Row(title: "Last checked") { Text(UpdatesCopy.lastChecked(updater.lastChecked)).foregroundStyle(.secondary) }
             }.card()
+            if let note = updater.permissionsNote {
+                Text(UpdatesCopy.permissionsNote(note)).font(.system(size: 12)).foregroundStyle(note == .permissionsWillReset ? Theme.danger : .secondary)
+            }
             if let text = updater.handoffText { Text(text).font(.system(size: 12)).foregroundStyle(.secondary) }
             status(state)
         }
