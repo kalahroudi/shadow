@@ -25,7 +25,7 @@ public enum AppLog {
 
     private static func append(_ line: String) {
         let stamp = ISO8601DateFormatter().string(from: Date())
-        guard let data = "\(stamp) \(line)\n".data(using: .utf8) else { return }
+        guard let data = "\(stamp) \(LogScrubber.scrub(line))\n".data(using: .utf8) else { return }
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         if let h = try? FileHandle(forWritingTo: fileURL) { defer { try? h.close() }; _ = try? h.seekToEnd(); try? h.write(contentsOf: data) }
         else { try? data.write(to: fileURL) }
