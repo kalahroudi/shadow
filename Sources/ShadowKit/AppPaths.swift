@@ -17,6 +17,9 @@ public struct AppPaths: Sendable {
     /// Written by the running app so the MCP server can find it (loopback port + token), 0600.
     public var controlFile: URL { root.appendingPathComponent("control.json") }
 
+    /// Downloads and the staged bundle for a self-update. Created on demand by the installer, not by `ensureDirectories`.
+    public var updatesDir: URL { root.appendingPathComponent("updates", isDirectory: true) }
+
     public func ensureDirectories() throws {
         for dir in [root, sessionsDir] { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
     }
