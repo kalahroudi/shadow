@@ -3,13 +3,24 @@
 import Foundation
 import CoreGraphics
 
-/// Which face the overlay shows. Answering is a stub in milestone 1: nothing ever enters it (R13).
+/// Which face the overlay shows. Answering covers a streaming or finished answer and the Meeting notes decline; `error` is a failed answer.
 public enum OverlayState: Sendable, Equatable {
-    case idle, listening, answering
+    case idle, listening, answering, error
 
     public static func from(sessionRunning: Bool) -> OverlayState { sessionRunning ? .listening : .idle }
+
+    /// Idle without a session, Listening with one and nothing to show, then Answering or Error from the answer state (R17).
+    public static func from(sessionRunning: Bool, answer: AnswerState) -> OverlayState {
+        guard sessionRunning else { return .idle }
+        switch answer {
+        case .idle: return .listening
+        case .answering, .declined: return .answering
+        case .failed: return .error
+        }
+    }
+
     public var label: String {
-        switch self { case .idle: "Idle"; case .listening: "Listening"; case .answering: "Answering" }
+        switch self { case .idle: "Idle"; case .listening: "Listening"; case .answering: "Answering"; case .error: "Answer failed" }
     }
 }
 

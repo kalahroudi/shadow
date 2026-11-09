@@ -51,6 +51,12 @@ public final class SessionCoordinator {
         self.locale = locale; self.now = now
     }
 
+    /// Saves an answer into the running session's file (R20). Ignored when no session runs.
+    public func recordAnswer(_ answer: AnswerRecord) {
+        guard let controller, isRunning else { return }
+        Task { await controller.addAnswer(answer) }
+    }
+
     public func elapsed(at date: Date) -> TimeInterval { startedAt.map { max(0, date.timeIntervalSince($0)) } ?? 0 }
 
     public func recheckPermissions() { showChecklist = !Checklist.items(using: checker).isEmpty }

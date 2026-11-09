@@ -35,13 +35,35 @@ enum SnapshotMode {
         Segment(speaker: .them, text: "and what you'd do differently", start: 17, end: 19, isFinal: false),
     ]
 
-    @MainActor static func overlay(_ state: OverlayState, compact: Bool, dark: Bool) -> Shot {
+    /// A long made-up answer with every markdown form, so the scrolling area is exercised in both layouts.
+    static let sampleAnswer = AnswerState.answering(Answer(
+        question: "Tell me about a time you had to scale a system under load.",
+        text: """
+        At my last company our **payments API** hit 10x traffic during a launch. I did three things:
+
+        - Added a read-through cache with `Redis`, cutting p99 from 900 ms to 120 ms
+        - Moved retries to a queue so spikes were absorbed instead of amplified
+        - Load tested every change before rollout
+
+        A small example of the backoff:
+
+        ```swift
+        let delay = min(cap, base * pow(2, attempt))
+        ```
+
+        The result was zero downtime at peak and a 40% lower infrastructure bill. Next time I would add capacity alarms earlier, before the load arrives, so the team is never reacting to a page at night.
+        """,
+        isStreaming: false, provider: "on-device", model: "", isCloud: false, latencyMs: 1400))
+
+    @MainActor static func overlay(_ state: OverlayState, compact: Bool, dark: Bool, answer: AnswerState = .idle) -> Shot {
         let size = OverlayLayout.size(compact: compact)
         let content = OverlayContent(state: state, compact: compact, lines: state == .idle ? [] : sampleLines,
                                      levels: state == .idle ? Levels() : Levels(them: 0.6, you: 0.25), opacity: 1, clickThrough: false,
                                      persona: Persona.default.label, sessionStart: state == .idle ? nil : Date(timeIntervalSinceNow: -192),
                                      startHotkey: HotkeyMap.defaults[.toggleSession]?.display ?? "",
-                                     clickThroughHotkey: HotkeyMap.defaults[.toggleClickThrough]?.display ?? "")
+                                     clickThroughHotkey: HotkeyMap.defaults[.toggleClickThrough]?.display ?? "",
+                                     answer: answer, canFollowUp: state == .answering, canGoBack: state == .answering, historyPosition: state == .answering ? "2 / 2" : nil,
+                                     answerHotkey: HotkeyMap.defaults[.answerNow]?.display ?? "", copyHotkey: HotkeyMap.defaults[.copyAnswer]?.display ?? "")
         let name = "overlay-\(state.label.lowercased())-\(compact ? "compact" : "expanded")" + (dark ? "-dark" : "")
         return Shot(name: name, dark: dark, size: CGSize(width: size.width + 40, height: size.height + 40)) {
             AnyView(OverlayView(content: content, actions: OverlayActions())
@@ -59,6 +81,7 @@ enum SnapshotMode {
             all.append(overlay(.idle, compact: true, dark: dark))
             all.append(overlay(.listening, compact: true, dark: dark))
             all.append(overlay(.listening, compact: false, dark: dark))
+            for compact in [true, false] { all.append(overlay(.answering, compact: compact, dark: dark, answer: sampleAnswer)) }
             all.append(Shot(name: "popover" + sfx, dark: dark, size: CGSize(width: 360, height: 480)) { AnyView(PopoverView()) })
             all.append(Shot(name: "popover-update-available" + sfx, dark: dark, size: CGSize(width: 360, height: 520)) {
                 Updater.shared.showSample(.sample)

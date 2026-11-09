@@ -19,6 +19,7 @@ public actor SessionController {
     private let now: @Sendable () -> Date
 
     private var session: SessionRecord?
+    private var answers: [AnswerRecord] = []
     private var stopping = false
     private var tasks: [Task<Void, Never>] = []
     private var levels = Levels()
@@ -75,11 +76,19 @@ public actor SessionController {
         do { youBuffers = try await you.start(clock: clock) } catch { await them.stop(); store.end(); throw error }
 
         session = record
+        answers = []
         stopping = false
         levels = Levels()
         await transcript.reset()
         tasks = [run(themBuffers, speaker: .them, locale: locale), run(youBuffers, speaker: .you, locale: locale)].flatMap { $0 }
         return record.id
+    }
+
+    /// Adds an answer to the session being recorded (R20) and checkpoints it, so it survives an unclean exit.
+    public func addAnswer(_ answer: AnswerRecord) async {
+        guard session != nil else { return }
+        answers.append(answer)
+        await checkpoint()
     }
 
     /// Stops capture, lets pending words finish, flushes partials as finals and writes the file.
@@ -96,6 +105,7 @@ public actor SessionController {
         await transcript.flushPartials()
         record.segments = await transcript.snapshot.finals
         record.endedAt = now()
+        record.answers = answers.isEmpty ? nil : answers
         levels = Levels(); publish()
 
         defer { store.end() }
@@ -198,6 +208,7 @@ public actor SessionController {
     private func checkpoint() async {
         guard var record = session else { return }
         record.segments = await transcript.snapshot.finals
+        record.answers = answers.isEmpty ? nil : answers
         do { try store.write(record) } catch { AppLog.error(error, context: "checkpoint session") }
     }
 
