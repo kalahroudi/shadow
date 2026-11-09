@@ -64,7 +64,14 @@ public enum PrefsDefaults {
     /// Visible mode is a fixed rule, not a setting: there is no way to hide the overlay from capture (R20).
     public static let visibleMode = true
 
+    /// Update checks (R1, R14, R18). Automatic checks are on and Local-only is off by default.
+    public static let autoUpdateChecks = "autoUpdateChecks"
+    public static let localOnly = "localOnly"
+    /// When the last successful check finished, and the earliest time to try again after GitHub rate-limited us.
+    public static let lastUpdateCheck = "lastUpdateCheck"
+    public static let lastUpdateRetryAfter = "lastUpdateRetryAfter"
+
     public static func register(in defaults: UserDefaults = .standard) {
-        defaults.register(defaults: [remindBeforeSession: true, onboardingCompleted: false])
+        defaults.register(defaults: [remindBeforeSession: true, onboardingCompleted: false, autoUpdateChecks: true, localOnly: false])
     }
 }

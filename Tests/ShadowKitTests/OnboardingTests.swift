@@ -56,5 +56,8 @@ final class OnboardingTests: XCTestCase {
         XCTAssertTrue(d.bool(forKey: PrefsDefaults.remindBeforeSession))
         XCTAssertFalse(d.bool(forKey: PrefsDefaults.onboardingCompleted))
         XCTAssertTrue(PrefsDefaults.visibleMode)
+        XCTAssertTrue(d.bool(forKey: PrefsDefaults.autoUpdateChecks))
+        XCTAssertFalse(d.bool(forKey: PrefsDefaults.localOnly))
+        XCTAssertNil(d.object(forKey: PrefsDefaults.lastUpdateCheck))
     }
 }
