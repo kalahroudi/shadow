@@ -7,6 +7,8 @@ private final class FakeSpeechAssetService: SpeechAssetService, @unchecked Senda
     /// Consumed one per `status` call; the last value repeats.
     var statuses: [SpeechAssetStatus] = [.needsDownload]
     var steps: [Double] = []
+    /// Called with the progress closure after the last step, so a test can fire it later.
+    var captureProgress: (@Sendable (@escaping @Sendable (Double) -> Void) -> Void)?
     /// Consumed one per `download` call; nil or missing means success.
     var downloadErrors: [Error?] = []
     private(set) var downloads = 0
@@ -22,6 +24,7 @@ private final class FakeSpeechAssetService: SpeechAssetService, @unchecked Senda
     func download(_ locale: Locale, progress: @escaping @Sendable (Double) -> Void) async throws {
         defer { downloads += 1 }
         for s in steps { progress(s) }
+        captureProgress?(progress)
         if downloads < downloadErrors.count, let e = downloadErrors[downloads] { throw e }
     }
 }
@@ -197,6 +200,33 @@ final class SpeechModelPreparerTests: XCTestCase {
         try await SpeechModelPreparer.prepare(locale: locale, service: service, onProgress: progress.add, log: { _, _ in }, sleep: { _ in })
         XCTAssertEqual(service.downloads, 1)
         XCTAssertEqual(progress.all, [0, nil])
+    }
+
+    func testWrappedURLErrorIsRetried() async throws {
+        let service = FakeSpeechAssetService()
+        let wrapped = NSError(domain: "SomeAssetDomain", code: 1, userInfo: [NSUnderlyingErrorKey: URLError(.notConnectedToInternet) as NSError])
+        service.downloadErrors = [wrapped]
+        try await SpeechModelPreparer.prepare(locale: locale, service: service, onProgress: { _ in }, log: { _, _ in }, sleep: { _ in })
+        XCTAssertEqual(service.downloads, 2)
+    }
+
+    func testLateProgressAfterFinishIsDropped() async throws {
+        final class Box: @unchecked Sendable { var fire: (@Sendable (Double) -> Void)? }
+        let box = Box()
+        let service = FakeSpeechAssetService()
+        service.captureProgress = { box.fire = $0 }
+        let progress = ProgressLog()
+        try await SpeechModelPreparer.prepare(locale: locale, service: service, onProgress: progress.add, log: { _, _ in }, sleep: { _ in })
+        box.fire?(0.9)
+        XCTAssertEqual(progress.all, [0, nil])
+    }
+
+    func testStatusUnsupportedIsLogged() async {
+        let service = FakeSpeechAssetService()
+        service.statuses = [.unsupported]
+        let lines = LineLog()
+        _ = try? await SpeechModelPreparer.prepare(locale: locale, service: service, onProgress: { _ in }, log: lines.add, sleep: { _ in })
+        XCTAssertEqual(lines.all.last, "E speech prepare [en-us]: asset status unsupported")
     }
 
     func testLocaleNormalization() {
