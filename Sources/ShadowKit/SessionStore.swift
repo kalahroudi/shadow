@@ -2,100 +2,88 @@
 
 import Foundation
 
-public enum SessionStatus: String, Codable, Sendable { case idle, running, busy, error, interrupted }
-
-/// Small, always-in-memory description of a session (what the sidebar needs). The heavy content is a separate payload file.
-public struct SessionMeta: Codable, Identifiable, Equatable, Sendable {
+/// One saved session: the full transcript plus when it ran (R21). `version` lets later milestones migrate the format.
+public struct SessionRecord: Codable, Equatable, Sendable {
+    public static let currentVersion = 1
+    public var version: Int
     public var id: UUID
-    public var title: String
-    public var status: SessionStatus
-    public var createdAt: Date
-    public var updatedAt: Date
-    public init(id: UUID = UUID(), title: String, status: SessionStatus = .idle, createdAt: Date = Date(), updatedAt: Date = Date()) {
-        self.id = id; self.title = title; self.status = status; self.createdAt = createdAt; self.updatedAt = updatedAt
-    }
-}
+    public var startedAt: Date
+    public var endedAt: Date?
+    public var segments: [Segment]
 
-public struct SessionIndex: Codable, Equatable, Sendable {
-    public var sessions: [SessionMeta] = []
-    public var selected: UUID?
-    public init() {}
+    public init(id: UUID, startedAt: Date, endedAt: Date? = nil, segments: [Segment] = [], version: Int = SessionRecord.currentVersion) {
+        self.version = version; self.id = id; self.startedAt = startedAt; self.endedAt = endedAt; self.segments = segments
+    }
 }
 
 /// Crash-safe persistence for sessions. Rules:
-/// - every write is atomic (temp file + rename), so a crash mid-write leaves the old file intact;
-/// - the index keeps a `.bak` of the previous good version; an unreadable file is quarantined (`.corrupt`), never deleted;
-/// - a `running.lock` exists while the app runs; finding it at launch means the last run ended without a clean quit;
-/// - sessions that were running/busy at that moment come back as `.interrupted`, never as "running" with nothing behind them;
-/// - only the index is loaded at launch; a payload is read on demand and not kept when the session is not on screen.
+/// - one JSON file per session under the sessions folder, written atomically (temp file + rename);
+/// - `running.lock` holds the id of the running session and is removed on clean stop;
+/// - finding the lock at launch means the last exit was unclean: the checkpointed transcript is offered back;
+/// - an unreadable session file is renamed `.corrupt`, never deleted;
+/// - only text is stored. Audio never touches the disk.
 public final class SessionStore: @unchecked Sendable {
-    public struct Loaded: Sendable { public var index: SessionIndex; public var recoveredFromCrash: Bool; public var quarantined: [String] }
+    /// What launch found. `interrupted` is the transcript of a session that did not stop cleanly, if it is readable.
+    public struct LaunchCheck: Sendable, Equatable {
+        public var interrupted: SessionRecord?
+        public var quarantined: [String]
+    }
 
     private let dir: URL
     private let lock = NSLock()
-    private var indexURL: URL { dir.appendingPathComponent("index.json") }
     private var lockURL: URL { dir.appendingPathComponent("running.lock") }
-    private func payloadURL(_ id: UUID) -> URL { dir.appendingPathComponent("\(id.uuidString).payload") }
 
     public init(directory: URL) { dir = directory }
 
-    /// Call once at launch, before any UI. Marks the app as running.
-    public func load() -> Loaded {
+    public func fileURL(for id: UUID) -> URL { dir.appendingPathComponent("\(id.uuidString).json") }
+    public var hasRunningLock: Bool { FileManager.default.fileExists(atPath: lockURL.path) }
+
+    /// Call once at launch. A leftover lock is cleared once its session has been read or quarantined; the file itself stays.
+    public func launchCheck() -> LaunchCheck {
         lock.lock(); defer { lock.unlock() }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let crashed = FileManager.default.fileExists(atPath: lockURL.path)
-        var quarantined: [String] = []
-        var index = readIndex(indexURL, quarantined: &quarantined)
-            ?? readIndex(indexURL.appendingPathExtension("bak"), quarantined: &quarantined)
-            ?? SessionIndex()
-        if crashed {
-            for i in index.sessions.indices where [.running, .busy].contains(index.sessions[i].status) { index.sessions[i].status = .interrupted }
+        guard let raw = try? Data(contentsOf: lockURL) else { return LaunchCheck(interrupted: nil, quarantined: []) }
+        defer { try? FileManager.default.removeItem(at: lockURL) }
+        guard let id = UUID(uuidString: String(decoding: raw, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return LaunchCheck(interrupted: nil, quarantined: [])
         }
-        FileManager.default.createFile(atPath: lockURL.path, contents: Data())
-        return Loaded(index: index, recoveredFromCrash: crashed && !index.sessions.isEmpty, quarantined: quarantined)
-    }
-
-    private func readIndex(_ url: URL, quarantined: inout [String]) -> SessionIndex? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
-        if let i = try? dec.decode(SessionIndex.self, from: data) { return i }
+        let url = fileURL(for: id)
+        guard let data = try? Data(contentsOf: url) else { return LaunchCheck(interrupted: nil, quarantined: []) }
+        if let record = try? Self.decoder.decode(SessionRecord.self, from: data) {
+            return LaunchCheck(interrupted: record, quarantined: [])
+        }
         let bad = url.appendingPathExtension("corrupt")
         try? FileManager.default.removeItem(at: bad)
         try? FileManager.default.moveItem(at: url, to: bad)
-        quarantined.append(bad.lastPathComponent)
-        return nil
+        return LaunchCheck(interrupted: nil, quarantined: [bad.lastPathComponent])
     }
 
-    public func saveIndex(_ index: SessionIndex) throws {
+    /// Marks a session as running.
+    public func begin(_ id: UUID) throws {
         lock.lock(); defer { lock.unlock() }
-        let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601; enc.outputFormatting = [.sortedKeys]
-        let data = try enc.encode(index)
-        if FileManager.default.fileExists(atPath: indexURL.path) {
-            let bak = indexURL.appendingPathExtension("bak")
-            try? FileManager.default.removeItem(at: bak)
-            try? FileManager.default.copyItem(at: indexURL, to: bak)
-        }
-        try data.write(to: indexURL, options: .atomic)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data(id.uuidString.utf8).write(to: lockURL, options: .atomic)
     }
 
-    public func writePayload(_ id: UUID, _ data: Data) throws {
+    /// Atomic write of the record. A failure leaves any earlier file intact and no partial file behind.
+    public func write(_ record: SessionRecord) throws {
         lock.lock(); defer { lock.unlock() }
-        try data.write(to: payloadURL(id), options: .atomic)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Self.encoder.encode(record).write(to: fileURL(for: record.id), options: .atomic)
     }
 
-    public func readPayload(_ id: UUID) -> Data? {
+    public func read(_ id: UUID) -> SessionRecord? {
         lock.lock(); defer { lock.unlock() }
-        return try? Data(contentsOf: payloadURL(id))
+        guard let data = try? Data(contentsOf: fileURL(for: id)) else { return nil }
+        return try? Self.decoder.decode(SessionRecord.self, from: data)
     }
 
-    public func deletePayload(_ id: UUID) {
-        lock.lock(); defer { lock.unlock() }
-        try? FileManager.default.removeItem(at: payloadURL(id))
-    }
-
-    /// Call from `applicationWillTerminate` after the final flush.
-    public func markCleanShutdown() {
+    /// Call after a clean stop.
+    public func end() {
         lock.lock(); defer { lock.unlock() }
         try? FileManager.default.removeItem(at: lockURL)
     }
+
+    private static var encoder: JSONEncoder { let e = JSONEncoder(); e.outputFormatting = [.sortedKeys, .prettyPrinted]; return e }
+    private static var decoder: JSONDecoder { JSONDecoder() }
 }
