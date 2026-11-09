@@ -131,18 +131,23 @@ final class PackageTests: XCTestCase {
     }
 
     func testBundleScriptSignsWithStableIdentityAndChecksDR() throws {
-        let script = try repoFile("scripts/bundle.sh")
-        XCTAssertEqual(script.components(separatedBy: "com.kalahroudi.shadow").count - 1, 1, "bundle ID is defined once")
-        XCTAssertTrue(script.contains("BUNDLE_ID=\"com.kalahroudi.shadow\""))
+        let bundle = try repoFile("scripts/bundle.sh")
+        XCTAssertEqual(bundle.components(separatedBy: "com.kalahroudi.shadow").count - 1, 1, "bundle ID is defined once in bundle.sh")
+        XCTAssertTrue(bundle.contains("BUNDLE_ID=\"com.kalahroudi.shadow\""))
+        XCTAssertTrue(bundle.contains("scripts/sign-app.sh \"$APP\""))
+        let script = try repoFile("scripts/sign-app.sh")
         for needle in ["SIGNING_IDENTITY", "Developer ID Application", "Shadow Signing", "certificate leaf = H",
-                       "certificate leaf[subject.OU]", "--options runtime", "--entitlements scripts/Shadow.entitlements",
-                       "--verify --deep --strict", "codesign -d -r-", "cdhash (not the identity)", "RESET"] {
+                       "certificate leaf[subject.OU]", "anchor apple generic and identifier", "--options runtime",
+                       "--entitlements scripts/Shadow.entitlements", "--verify --deep --strict", "codesign -d -r-",
+                       "cdhash (not the identity)", "RESET", "security find-certificate", "x509 -noout -subject"] {
             XCTAssertTrue(script.contains(needle), needle)
         }
+        let stubs = try repoFile("scripts/test-signing-stubs.sh")
+        XCTAssertTrue(stubs.contains("R6=") && stubs.contains("R5=") && stubs.contains("R8="), "exact DR strings are asserted")
     }
 
     func testNoOldSigningVariableRemains() throws {
-        for path in ["scripts/bundle.sh", "scripts/make-signing-identity.sh", "scripts/test-signing.sh", "scripts/Shadow.entitlements", "README.md"] {
+        for path in ["scripts/bundle.sh", "scripts/sign-app.sh", "scripts/make-signing-identity.sh", "scripts/test-signing.sh", "scripts/Shadow.entitlements", "README.md"] {
             XCTAssertFalse(try repoFile(path).contains("SIGN_IDENTITY"), path)
         }
     }
