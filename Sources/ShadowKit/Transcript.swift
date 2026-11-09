@@ -67,6 +67,9 @@ public actor Transcript {
         publish()
     }
 
+    /// Clears everything for a new session.
+    public func reset() { state = TranscriptSnapshot(); publish() }
+
     /// Emits the current state immediately, then one value per change.
     public func updates() -> AsyncStream<TranscriptSnapshot> {
         let id = UUID()

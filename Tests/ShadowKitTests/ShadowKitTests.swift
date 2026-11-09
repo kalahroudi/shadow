@@ -6,39 +6,46 @@ final class KitTests: XCTestCase {
         XCTAssertTrue(SetupState(items: []).ready)
     }
 
-    // MARK: sessions (crash safety)
+    // MARK: sessions (crash safety), ported to the one-file-per-session store
     private func tmp() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("sess-\(UUID().uuidString)") }
+    private func record(_ text: String) -> SessionRecord {
+        SessionRecord(id: UUID(), startedAt: Date(), segments: [Segment(speaker: .you, text: text, start: 0, end: 1, isFinal: true)])
+    }
 
     func testSessionsSurviveCleanRestart() throws {
         let dir = tmp(); defer { try? FileManager.default.removeItem(at: dir) }
-        let a = SessionStore(directory: dir); _ = a.load()
-        var idx = SessionIndex(); let m = SessionMeta(title: "one"); idx.sessions = [m]; idx.selected = m.id
-        try a.saveIndex(idx); try a.writePayload(m.id, Data("hello".utf8)); a.markCleanShutdown()
-        let b = SessionStore(directory: dir).load()
-        XCTAssertFalse(b.recoveredFromCrash)
-        XCTAssertEqual(b.index.sessions.map(\.title), ["one"])
-        XCTAssertEqual(SessionStore(directory: dir).readPayload(m.id), Data("hello".utf8))
+        let a = SessionStore(directory: dir)
+        let r = record("one")
+        try a.begin(r.id); try a.write(r); a.end()
+        let b = SessionStore(directory: dir)
+        let check = b.launchCheck()
+        XCTAssertNil(check.interrupted)
+        XCTAssertEqual(check.quarantined, [])
+        XCTAssertFalse(b.hasRunningLock)
+        XCTAssertEqual(b.read(r.id), r)
     }
 
-    func testCrashRestoresAndMarksRunningAsInterrupted() throws {
+    func testCrashIsDetectedAndTranscriptOffered() throws {
         let dir = tmp(); defer { try? FileManager.default.removeItem(at: dir) }
-        let a = SessionStore(directory: dir); _ = a.load()
-        var idx = SessionIndex(); idx.sessions = [SessionMeta(title: "busy", status: .busy), SessionMeta(title: "idle")]
-        try a.saveIndex(idx)                       // no markCleanShutdown: simulates a crash / kill -9
-        let b = SessionStore(directory: dir).load()
-        XCTAssertTrue(b.recoveredFromCrash)
-        XCTAssertEqual(b.index.sessions.map(\.status), [.interrupted, .idle])
+        let a = SessionStore(directory: dir)
+        let r = record("busy")
+        try a.begin(r.id); try a.write(r)          // no end(): simulates a crash / kill -9
+        XCTAssertTrue(SessionStore(directory: dir).hasRunningLock)
+        let check = SessionStore(directory: dir).launchCheck()
+        XCTAssertEqual(check.interrupted?.id, r.id)
+        XCTAssertEqual(check.interrupted?.segments.map(\.text), ["busy"])
     }
 
-    func testCorruptIndexFallsBackToBackupAndIsQuarantined() throws {
+    func testCorruptSessionIsQuarantinedAndKept() throws {
         let dir = tmp(); defer { try? FileManager.default.removeItem(at: dir) }
-        let a = SessionStore(directory: dir); _ = a.load()
-        var idx = SessionIndex(); idx.sessions = [SessionMeta(title: "keep")]
-        try a.saveIndex(idx); try a.saveIndex(idx)  // second save leaves index.json.bak
-        try Data("{ not json".utf8).write(to: dir.appendingPathComponent("index.json"))
-        let b = SessionStore(directory: dir).load()
-        XCTAssertEqual(b.index.sessions.map(\.title), ["keep"])
-        XCTAssertEqual(b.quarantined, ["index.json.corrupt"])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("index.json.corrupt").path))
+        let a = SessionStore(directory: dir)
+        let r = record("keep")
+        try a.begin(r.id)
+        try Data("{ not json".utf8).write(to: a.fileURL(for: r.id))
+        let check = SessionStore(directory: dir).launchCheck()
+        XCTAssertNil(check.interrupted)
+        XCTAssertEqual(check.quarantined, ["\(r.id.uuidString).json.corrupt"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: a.fileURL(for: r.id).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: a.fileURL(for: r.id).appendingPathExtension("corrupt").path))
     }
 }
