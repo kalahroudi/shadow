@@ -37,11 +37,15 @@ struct PopoverView: View {
                 }
                 .toggleStyle(.switch).padding(.vertical, 5).contentShape(Rectangle())
             }
-            HStack {
-                Circle().fill(Theme.ok).frame(width: 7, height: 7)
-                Text("Speech").font(.system(size: 13))
-                Spacer()
-                Text("Apple SpeechAnalyzer").font(.system(size: 12)).foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                ForEach(StatusRow.rows(speech: "Apple SpeechAnalyzer", providerID: LLMSettings().selectedProviderID, status: model.languageModelStatus)) { r in
+                    HStack {
+                        Circle().fill(r.isReady ? Theme.ok : Theme.warn).frame(width: 7, height: 7)
+                        Text(r.title).font(.system(size: 13))
+                        Spacer()
+                        Text(r.value).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
             }
             .card(padding: 10)
             Divider()
@@ -57,6 +61,7 @@ struct PopoverView: View {
         .padding(12)
         .frame(width: 340)
         .onAppear { model.recheckPermissions() }
+        .task { await model.refreshLanguageModelStatus() }
         .background(Theme.pane)   // an opaque themed background: the popover must follow the app theme
     }
 
