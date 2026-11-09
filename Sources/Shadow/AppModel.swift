@@ -26,6 +26,7 @@ final class AppModel {
     var languageModelStatus: ProviderStatus?
     func refreshLanguageModelStatus() async {
         let id = LLMSettings().selectedProviderID
+        languageModelStatus = nil   // never show the previous provider's status beside the new one
         languageModelStatus = await AppModel.makeProvider(id)?.availability() ?? .unavailable("Not available in this build.")
     }
 

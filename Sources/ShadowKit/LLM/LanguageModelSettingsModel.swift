@@ -49,6 +49,7 @@ public final class LanguageModelSettingsModel {
         }
         if let url = try? LoopbackURL.validate(settings.localBaseURL), statuses[OpenAICompatProvider.providerID]?.isReady == true {
             localModels = (try? await listLocalModels(url.absoluteString)) ?? []
+            settings.adoptLocalModel(from: localModels)
         } else { localModels = [] }
     }
 

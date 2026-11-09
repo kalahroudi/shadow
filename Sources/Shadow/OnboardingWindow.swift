@@ -172,6 +172,10 @@ struct OnboardingView: View {
         for o in ProviderOption.allCases {
             let status = await AppModel.makeProvider(o.providerID(ownKeyKind: model.ownKeyKind))?.availability() ?? .unavailable("Not available in this build.")
             model.record(status, for: o)
+            // A ready local server must also have a model chosen, or the first answer would fail.
+            if o == .localServer, status.isReady, let list = try? await OpenAICompatProvider(baseURL: LLMSettings().localBaseURL).models() {
+                LLMSettings().adoptLocalModel(from: list)
+            }
         }
         checking = false
     }
