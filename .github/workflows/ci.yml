@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+      - name: Bundle (ad-hoc signed) and self-test
+        run: |
+          scripts/bundle.sh 0.0.0-ci
+          dist/Shadow.app/Contents/MacOS/Shadow --self-test
+          dist/Shadow.app/Contents/MacOS/shadow-mcp --version
