@@ -69,6 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.contentViewController = nil   // release the popover's views while hidden
     }
 
+    /// Quitting during a session stops it first, so the transcript is written rather than left for crash recovery.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard AppModel.shared.isRunning else { return .terminateNow }
+        Task { await AppModel.shared.shutdown(); NSApp.reply(toApplicationShouldTerminate: true) }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) { HotkeyCenter.shared.unregisterAll() }
 
     // The app lives in the menu bar: closing the last window must not quit it.

@@ -12,11 +12,12 @@ struct PopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            if model.showChecklist { PermissionChecklistView(checker: model.checker) } else { startButton }
+            if model.showChecklist { PermissionChecklistView(checker: model.checker) { model.recheckPermissions() } } else { startButton }
             if let message = model.message {
                 Text(message).font(.system(size: 12)).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true)
             }
             meters
+            captions
             VStack(spacing: 0) {
                 row(icon: "person.circle", title: "Persona") {
                     Picker("Persona", selection: $prefs.persona) { ForEach(Persona.allCases, id: \.self) { Text($0.label).tag($0) } }
@@ -47,6 +48,7 @@ struct PopoverView: View {
         }
         .padding(12)
         .frame(width: 340)
+        .onAppear { model.recheckPermissions() }
         .background(Theme.pane)   // an opaque themed background: the popover must follow the app theme
     }
 
@@ -55,7 +57,7 @@ struct PopoverView: View {
             Image(nsImage: AppIcon.image(size: 30)).resizable().frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Shadow").font(.system(size: 14, weight: .semibold))
-                Text(model.isRunning ? "Session in progress" : "Ready").font(.system(size: 12)).foregroundStyle(.secondary)
+                headerSubtitle
             }
             Spacer()
             Text(model.isRunning ? "Listening" : "Idle")
@@ -63,6 +65,35 @@ struct PopoverView: View {
                 .padding(.horizontal, 10).padding(.vertical, 3)
                 .background(model.isRunning ? Theme.ok.opacity(0.18) : Theme.fill, in: Capsule())
                 .foregroundStyle(model.isRunning ? Theme.ok : .secondary)
+        }
+    }
+
+    @ViewBuilder private var headerSubtitle: some View {
+        if model.isRunning, let start = model.session.startedAt {
+            // The ticking clock exists only while the popover is open and a session runs.
+            TimelineView(.periodic(from: start, by: 1)) { ctx in
+                Text("Session in progress · \(ElapsedFormat.string(model.session.elapsed(at: ctx.date)))")
+                    .font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)
+            }
+        } else if let p = model.session.modelDownload {
+            Text("Downloading speech model \(Int(p * 100))%").font(.system(size: 12)).foregroundStyle(.secondary)
+        } else {
+            Text(model.session.phase == .idle ? "Ready" : "Working…").font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+    }
+
+    /// The last few lines of the live transcript, so Start visibly does something even with the overlay hidden.
+    @ViewBuilder private var captions: some View {
+        let lines = model.session.transcript.lines.suffix(3)
+        if model.isRunning, !lines.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, seg in
+                    Text("\(seg.speaker == .them ? "Them" : "You"): \(seg.text)")
+                        .font(.system(size: 12)).foregroundStyle(seg.isFinal ? .primary : .secondary)
+                        .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .card(padding: 8)
         }
     }
 
@@ -80,6 +111,7 @@ struct PopoverView: View {
                         in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+        .disabled(model.session.phase == .starting || model.session.phase == .stopping)
     }
 
     private var startHotkeyLabel: String { prefs.hotkeys[.toggleSession]?.display ?? "" }

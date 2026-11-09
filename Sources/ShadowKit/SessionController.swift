@@ -19,6 +19,7 @@ public actor SessionController {
     private let now: @Sendable () -> Date
 
     private var session: SessionRecord?
+    private var stopping = false
     private var tasks: [Task<Void, Never>] = []
     private var levels = Levels()
     private var observers: [UUID: AsyncStream<Levels>.Continuation] = [:]
@@ -68,6 +69,7 @@ public actor SessionController {
         do { youBuffers = try await you.start(clock: clock) } catch { await them.stop(); store.end(); throw error }
 
         session = record
+        stopping = false
         levels = Levels()
         await transcript.reset()
         tasks = [run(themBuffers, speaker: .them, locale: locale), run(youBuffers, speaker: .you, locale: locale)].flatMap { $0 }
@@ -79,6 +81,7 @@ public actor SessionController {
     @discardableResult
     public func stop() async throws -> SessionRecord? {
         guard var record = session else { return nil }
+        stopping = true   // from here a source ending is expected, not a failure
         await them.stop()
         await you.stop()
         for task in tasks { await task.value }
@@ -108,6 +111,7 @@ public actor SessionController {
                 if sttAlive, case .terminated = out.yield(item) { sttAlive = false }
             }
             out.finish()
+            await self.sourceEnded(speaker)
         }
         let segments = stt.transcribe(forSTT, speaker: speaker, locale: locale)
         let consume = Task {
@@ -138,6 +142,15 @@ public actor SessionController {
         let other = speaker == .them ? "You" : "Them"
         let detail = (error as? UserFacingError)?.message
         let message = "Speech recognition stopped for \(who)\(detail.map { ": \($0)" } ?? ""). Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
+        for c in noticeObservers.values { c.yield(message) }
+    }
+
+    /// A capture stream ended while the session is still running (the device vanished or the system stopped it).
+    private func sourceEnded(_ speaker: Speaker) {
+        guard session != nil, !stopping else { return }
+        AppLog.info("audio source ended mid-session: \(speaker.rawValue)")
+        let who = speaker == .them ? "system audio (Them)" : "the microphone (You)"
+        let message = "Shadow lost \(who). Stop and start a new session to capture it again; what was captured so far is kept."
         for c in noticeObservers.values { c.yield(message) }
     }
 

@@ -9,26 +9,41 @@ import ShadowKit
 final class AppModel {
     static let shared = AppModel()
 
-    private(set) var isRunning = false
-    private(set) var levels = Levels()
-    /// One short friendly sentence, or nil.
-    private(set) var message: String?
-    /// True while the "fix your permissions" checklist replaces the Start path (R7).
-    private(set) var showChecklist = false
+    let checker: PermissionChecker = SystemPermissionChecker()
+    /// Start, Stop, live transcript, meters and elapsed time. The popover and, later, the overlay read it.
+    let session: SessionCoordinator
     /// Click-through state; the overlay (a later task) reads it. Hotkey-toggled so it can never be stuck on (R15).
     private(set) var clickThrough = false
-
-    /// Builds the controller for one session. The real audio and speech adapters plug in here; until they are wired
-    /// Start reports a friendly message and starts nothing.
-    var makeController: @MainActor () -> SessionController? = { nil }
-    let checker: PermissionChecker = SystemPermissionChecker()
-    var onRunningChange: (@MainActor (Bool) -> Void)?
-    var onNeedPopover: (@MainActor () -> Void)?
     var onOpenSettings: (@MainActor () -> Void)?
 
-    private var controller: SessionController?
-    private var levelTask: Task<Void, Never>?
-    private var busy = false
+    var isRunning: Bool { session.isRunning }
+    var levels: Levels { session.levels }
+    var message: String? { session.message }
+    var showChecklist: Bool { session.showChecklist }
+    var onRunningChange: (@MainActor (Bool) -> Void)? { get { session.onRunningChange } set { session.onRunningChange = newValue } }
+    var onNeedPopover: (@MainActor () -> Void)? { get { session.onNeedPopover } set { session.onNeedPopover = newValue } }
+
+    private init() {
+        let checker = self.checker
+        session = SessionCoordinator(
+            checker: checker,
+            makeController: { AppModel.makeRealController() },
+            remindBeforeSession: { Prefs.shared.remindBeforeSession },
+            confirmReminder: { AppModel.confirmReminder() },
+            locale: { Prefs.shared.language.resolve(supported: Language.allCases.compactMap(\.fixedLocale)) })
+    }
+
+    /// The real pipeline: system audio (Them), microphone (You) and on-device speech, writing to the sessions folder.
+    private static func makeRealController() -> SessionController? {
+        let paths = AppPaths()
+        do { try paths.ensureDirectories() } catch {
+            AppLog.error(error, context: "create sessions folder")
+            return nil
+        }
+        let stt = AppleSTTProvider { progress in Task { @MainActor in AppModel.shared.session.modelDownload = progress } }
+        return SessionController(them: SCKAudioSource(), you: MicAudioSource(deviceUID: { Prefs.micDeviceUIDForStart() }),
+                                 stt: stt, store: SessionStore(directory: paths.sessionsDir))
+    }
 
     func handle(_ action: HotkeyAction) {
         let prefs = Prefs.shared
@@ -40,59 +55,19 @@ final class AppModel {
         }
     }
 
-    func toggleSession() {
-        guard !busy else { return }
-        busy = true
-        Task { defer { busy = false }; if isRunning { await stop() } else { await start() } }
-    }
-
-    func recheckPermissions() { showChecklist = !Checklist.items(using: checker).isEmpty }
+    func toggleSession() { Task { await session.toggle() } }
+    /// Stops a running session so its transcript is written; awaited when the app quits.
+    func shutdown() async { await session.shutdown() }
+    func recheckPermissions() { session.recheckPermissions() }
+    func dismissMessage() { session.dismissMessage() }
     /// Tells the user when a shortcut could not be registered, so a dead hotkey is never silent.
     func reportHotkeyConflicts(_ failed: some Collection<HotkeyAction>) {
         guard let text = HotkeyAction.conflictMessage(for: failed) else { return }
-        message = text; onNeedPopover?()
-    }
-    func dismissMessage() { message = nil }
-
-    private func start() async {
-        message = nil
-        if !Checklist.items(using: checker).isEmpty {
-            showChecklist = true; onNeedPopover?(); return   // nothing starts without both permissions
-        }
-        showChecklist = false
-        if Prefs.shared.remindBeforeSession, !confirmReminder() { return }
-        guard let controller = makeController() else {
-            message = "Capture isn't available in this build yet."; onNeedPopover?(); return
-        }
-        do {
-            let locale = Prefs.shared.language.resolve(supported: Language.allCases.compactMap(\.fixedLocale))
-            try await controller.start(locale: locale)
-        } catch {
-            AppLog.error(error, context: "start session")
-            message = UserError.message(for: error, action: "Start the session"); onNeedPopover?(); return
-        }
-        self.controller = controller
-        isRunning = true
-        onRunningChange?(true)
-        let updates = await controller.levelUpdates()
-        levelTask = Task { for await value in updates { levels = value } }
-    }
-
-    private func stop() async {
-        guard let controller else { return }
-        do { try await controller.stop() } catch {
-            AppLog.error(error, context: "stop session")
-            message = UserError.message(for: error, action: "Save the transcript")
-        }
-        levelTask?.cancel(); levelTask = nil
-        self.controller = nil
-        levels = Levels()
-        isRunning = false
-        onRunningChange?(false)
+        session.showNotice(text)
     }
 
     /// The reminder before each session (R20). Capture begins only after the user confirms.
-    private func confirmReminder() -> Bool {
+    private static func confirmReminder() -> Bool {
         let alert = NSAlert()
         alert.messageText = "Start listening?"
         alert.informativeText = "Shadow will transcribe system audio and your microphone on this Mac and show a live transcript in a window that is visible to screen sharing. Make sure everyone on the call is fine with that."
