@@ -44,9 +44,10 @@ final class Prefs {
         return [:]
     }
 
-    /// The microphone chosen in Settings (a Core Audio device UID), or nil for the system default. Read when a session starts.
+    /// The microphone for the You stream: the Core Audio device UID stored under "micDeviceID" (the key #8's Settings picker writes),
+    /// or nil for the system default (an empty or missing value). Read when a session starts.
     nonisolated static func micDeviceUIDForStart() -> String? {
-        let uid = UserDefaults.standard.string(forKey: "micDeviceUID")
+        let uid = UserDefaults.standard.string(forKey: "micDeviceID")
         return uid?.isEmpty == false ? uid : nil
     }
 
