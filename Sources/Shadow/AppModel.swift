@@ -22,6 +22,14 @@ final class AppModel {
     var onOpenSettings: (@MainActor () -> Void)?
     var onOpenUpdates: (@MainActor () -> Void)?
 
+    /// Live status of the selected language model for the popover (R22); nil while it is being checked.
+    var languageModelStatus: ProviderStatus?
+    func refreshLanguageModelStatus() async {
+        let id = LLMSettings().selectedProviderID
+        languageModelStatus = nil   // never show the previous provider's status beside the new one
+        languageModelStatus = await AppModel.makeProvider(id)?.availability() ?? .unavailable("Not available in this build.")
+    }
+
     var isRunning: Bool { session.isRunning }
     var levels: Levels { session.levels }
     var notices: [Notice] { session.notices }
@@ -53,7 +61,7 @@ final class AppModel {
         }
     }
 
-    private static func makeProvider(_ id: String) -> (any LLMProvider)? {
+    static func makeProvider(_ id: String) -> (any LLMProvider)? {
         switch id {
         case OnDeviceProvider.providerID: return OnDeviceProvider(model: FoundationModelsModel())
         case OpenAICompatProvider.providerID: return OpenAICompatProvider(baseURL: LLMSettings().localBaseURL)

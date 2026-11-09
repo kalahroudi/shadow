@@ -36,13 +36,14 @@ struct OnboardingView: View {
     let onFinish: () -> Void
     @State private var model: OnboardingModel
     @State private var prefs = Prefs.shared
+    @State private var keyText = ""
+    @State private var keyNote: String?
+    @State private var checking = false
 
     init(checker: PermissionChecker, step: OnboardingModel.Step = .welcome, onFinish: @escaping () -> Void) {
         self.checker = checker
         self.onFinish = onFinish
-        var m = OnboardingModel()
-        while m.step != step { _ = m.advance() }
-        _model = State(initialValue: m)
+        _model = State(initialValue: OnboardingModel(startingAt: step))
     }
 
     var body: some View {
@@ -112,26 +113,86 @@ struct OnboardingView: View {
             title("Choose your brain", "You can change this any time in Settings.")
             VStack(spacing: 8) {
                 ForEach(ProviderOption.allCases, id: \.self) { o in
-                    Button { model.select(o) } label: {
+                    let reason = model.unavailableReason(o)
+                    Button { choose(o) } label: {
                         HStack(spacing: 10) {
                             Image(systemName: model.provider == o ? "largecircle.fill.circle" : "circle")
                                 .foregroundStyle(model.provider == o ? Color.accentColor : .secondary)
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text(o.title).font(.system(size: 13, weight: .semibold))
-                                    if o.isAvailable { Text("Recommended").font(.system(size: 11)).foregroundStyle(Theme.ok) }
-                                    else { Text("Coming soon").font(.system(size: 11)).foregroundStyle(.secondary) }
+                                    if o.isRecommended { Text("Recommended").font(.system(size: 11)).foregroundStyle(Theme.ok) }
+                                    if let s = model.statuses[o] { Text(s.label).font(.system(size: 11)).foregroundStyle(s.isReady ? Theme.ok : .secondary) }
                                 }
-                                Text(o.detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                                Text(reason ?? o.detail).font(.system(size: 12)).foregroundStyle(reason == nil ? Color.secondary : Theme.warn)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer()
                         }
                         .contentShape(Rectangle()).card()
                     }
-                    .buttonStyle(.plain).disabled(!o.isAvailable).opacity(o.isAvailable ? 1 : 0.55)
+                    .buttonStyle(.plain).disabled(reason != nil).opacity(reason == nil ? 1 : 0.6)
                 }
             }
+            if model.provider == .ownKey { ownKeyEntry }
+            HStack {
+                Button(checking ? "Checking…" : "Check again") { Task { await checkAll() } }.disabled(checking)
+                if model.providerIsReady { Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.ok) }
+                else if !checking { Text("Continue unlocks once the choice is checked and ready.").foregroundStyle(.secondary) }
+            }.font(.system(size: 12)).padding(.top, 6)
         }
+        .task { await checkAll() }
+    }
+
+    private var ownKeyEntry: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Picker("Provider", selection: Binding(get: { model.ownKeyKind }, set: { model.ownKeyKind = $0; keyNote = nil; configure(); Task { await checkAll() } })) {
+                    ForEach(CloudKind.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }.labelsHidden().fixedSize()
+                SecureField("API key", text: $keyText).textFieldStyle(.roundedBorder)
+                Button("Test & save") { Task { await saveKey() } }.disabled(keyText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            if let keyNote { Text(keyNote).font(.system(size: 12)).foregroundStyle(.secondary) }
+        }.padding(.top, 6)
+    }
+
+    private func choose(_ o: ProviderOption) {
+        model.select(o)
+        configure()
+    }
+
+    /// Choosing a provider configures it right away (R23).
+    private func configure() {
+        if case .failure(let e) = model.configure(LLMSettings()) { keyNote = e.message }
+    }
+
+    private func checkAll() async {
+        checking = true
+        for o in ProviderOption.allCases {
+            let status = await AppModel.makeProvider(o.providerID(ownKeyKind: model.ownKeyKind))?.availability() ?? .unavailable("Not available in this build.")
+            model.record(status, for: o)
+            // A ready local server must also have a model chosen, or the first answer would fail.
+            if o == .localServer, status.isReady, let list = try? await OpenAICompatProvider(baseURL: LLMSettings().localBaseURL).models() {
+                LLMSettings().adoptLocalModel(from: list)
+            }
+        }
+        checking = false
+    }
+
+    /// A real minimal request first; the key is stored (Keychain only) only if it works.
+    private func saveKey() async {
+        let kind = model.ownKeyKind
+        let secrets = KeychainStore()
+        do {
+            try await CloudProvider(kind: kind, secrets: secrets, localOnly: { LLMSettings().localOnly }).testKey(keyText)
+            try secrets.saveKey(keyText, for: kind)
+            keyText = ""
+            keyNote = "Key works and is saved in your Keychain."
+            configure()
+            await checkAll()
+        } catch let e as LLMError { keyNote = e.message
+        } catch { keyNote = (error as? UserFacingError)?.message ?? "Couldn't save the key." }
     }
 
     private var consent: some View {

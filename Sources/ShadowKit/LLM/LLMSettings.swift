@@ -8,6 +8,7 @@ import Foundation
 public struct LLMSettings: @unchecked Sendable {   // UserDefaults is thread-safe
     public static let selectedKey = "llm.provider"
     public static let baseURLKey = "llm.localBaseURL"
+    public static let localModelKey = "llm.localModel"
     public static let fallbackProviderID = OnDeviceProvider.providerID
 
     public struct LocalOnlyOutcome: Equatable, Sendable {
@@ -58,6 +59,22 @@ public struct LLMSettings: @unchecked Sendable {   // UserDefaults is thread-saf
     public func setModel(_ model: String, for kind: CloudKind) {
         guard kind.models.contains(model) else { return }
         defaults.set(model, forKey: "llm.model.\(kind.id)")
+    }
+
+    /// The model asked of the local server; empty until the user picks one from its model list (R3, R21).
+    public var localModel: String { defaults.string(forKey: Self.localModelKey) ?? "" }
+    public func setLocalModel(_ model: String) { defaults.set(model, forKey: Self.localModelKey) }
+
+    /// Keeps the local pick usable: if none is set, or the server no longer lists it, take the server's first model.
+    public func adoptLocalModel(from listed: [String]) {
+        guard let first = listed.first, !listed.contains(localModel) else { return }
+        setLocalModel(first)
+    }
+
+    /// The model name a request to this provider should carry: the cloud pick, the local server pick, or empty for the provider's own default.
+    public func modelName(for providerID: String) -> String {
+        if let kind = CloudKind(rawValue: providerID) { return model(for: kind) }
+        return providerID == OpenAICompatProvider.providerID ? localModel : ""
     }
 
     public var localBaseURL: String { defaults.string(forKey: Self.baseURLKey) ?? LoopbackURL.defaultBase }

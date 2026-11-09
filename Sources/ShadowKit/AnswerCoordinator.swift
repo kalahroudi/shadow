@@ -275,7 +275,7 @@ public final class AnswerCoordinator {
             state = .failed(LLMError(.unavailable).message, partial: nil); return
         }
         let p = persona(), lang = language()
-        let model = CloudKind(rawValue: id).map { settings.model(for: $0) } ?? ""
+        let model = settings.modelName(for: id)
         let context = ContextBuilder.build(persona: p, language: lang, turns: turns(), question: question)
         let pending = Pending(request: LLMRequest(context: context, persona: p, language: lang, model: model),
                               question: question, providerID: id, isCloud: provider.isCloud)

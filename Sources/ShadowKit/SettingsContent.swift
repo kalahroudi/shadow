@@ -4,12 +4,14 @@ import Foundation
 
 /// The Settings panes (R19). Every case has real content.
 public enum SettingsPane: String, CaseIterable, Sendable, Identifiable {
-    case speech, hotkeys, privacy, general, updates
+    case speech, languageModel, personas, hotkeys, privacy, general, updates
 
     public var id: String { rawValue }
     public var title: String {
         switch self {
         case .speech: "Speech"
+        case .languageModel: "Language model"
+        case .personas: "Personas"
         case .hotkeys: "Hotkeys"
         case .privacy: "Privacy"
         case .general: "General"
@@ -19,6 +21,8 @@ public enum SettingsPane: String, CaseIterable, Sendable, Identifiable {
     public var symbol: String {
         switch self {
         case .speech: "waveform"
+        case .languageModel: "sparkles"
+        case .personas: "person.2"
         case .hotkeys: "command"
         case .privacy: "lock.shield"
         case .general: "gearshape"

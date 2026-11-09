@@ -60,6 +60,8 @@ struct SettingsView: View {
                         Text(pane.title).font(.system(size: 20, weight: .semibold))
                         switch pane {
                         case .speech: SpeechPane()
+                        case .languageModel: LanguageModelPane()
+                        case .personas: PersonasPane()
                         case .hotkeys: HotkeysPane()
                         case .privacy: PrivacyPane()
                         case .general: GeneralPane()
@@ -126,6 +128,136 @@ struct SpeechPane: View {
         }
         .onAppear { devices = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone], mediaType: .audio, position: .unspecified).devices }
         .onDisappear { devices = [] }
+    }
+}
+
+struct LanguageModelPane: View {
+    @State private var model = LanguageModelSettingsModel(makeProvider: { AppModel.makeProvider($0) })
+    @State private var baseURL = LLMSettings().localBaseURL
+    @State private var keys: [CloudKind: String] = [:]
+    @State private var checking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(spacing: 12) {
+                ForEach(Array(ProviderCatalog.all.enumerated()), id: \.element.id) { i, info in
+                    if i > 0 { Divider() }
+                    providerRow(info)
+                }
+            }.card()
+            if let m = model.message { Text(m).font(.system(size: 12)).foregroundStyle(Theme.danger) }
+            if model.localOnly { Text(LocalOnlyPolicy.message).font(.system(size: 12)).foregroundStyle(Theme.warn) }
+            VStack(alignment: .leading, spacing: 8) {
+                Row(title: "Local server address", detail: "Must be on this Mac (localhost or 127.0.0.1).") {
+                    TextField("", text: $baseURL).textFieldStyle(.roundedBorder).frame(width: 240)
+                        .onSubmit { model.setLocalBaseURL(baseURL); Task { await refresh() } }
+                }
+                Row(title: "Local server model", detail: model.localModels.isEmpty ? "Start the server to list its models." : nil) {
+                    Picker("Model", selection: Binding(get: { model.localModel }, set: { model.setLocalModel($0) })) {
+                        Text("Choose…").tag("")
+                        ForEach(model.localModels, id: \.self) { Text($0).tag($0) }
+                        if !model.localModel.isEmpty, !model.localModels.contains(model.localModel) { Text(model.localModel).tag(model.localModel) }
+                    }.labelsHidden().frame(width: 240).disabled(model.localModels.isEmpty)
+                }
+            }.card()
+            Text(ProviderCatalog.cloudVersusLocal).font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+        .task { await refresh() }
+    }
+
+    private func refresh() async { checking = true; await model.refresh(); checking = false }
+
+    @ViewBuilder private func providerRow(_ info: ProviderInfo) -> some View {
+        let status = model.statuses[info.id]
+        let kind = CloudKind(rawValue: info.id)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button { model.select(info.id) } label: {
+                    Image(systemName: model.selectedID == info.id ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(model.selectedID == info.id ? Color.accentColor : .secondary)
+                }.buttonStyle(.plain).disabled(!model.isSelectable(info.id)).accessibilityLabel("Use \(info.title)")
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(info.title)
+                        if info.isCloud { Text("cloud").font(.system(size: 10)).padding(.horizontal, 5).background(Theme.fill, in: Capsule()) }
+                    }
+                    Text(info.detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                    if let why = status?.explanation, status != .needsKey { Text(why).font(.system(size: 12)).foregroundStyle(Theme.warn) }
+                }
+                Spacer(minLength: 8)
+                Text(status?.label ?? "Checking…").font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(status?.isReady == true ? Theme.ok : .secondary)
+            }
+            if let kind {
+                HStack {
+                    Picker("Model", selection: Binding(get: { model.model(for: kind) }, set: { model.setModel($0, for: kind) })) {
+                        ForEach(kind.models, id: \.self) { Text($0).tag($0) }
+                    }.labelsHidden().frame(width: 150)
+                    SecureField(model.hasKey[kind] == true ? "Key saved in Keychain" : "API key", text: Binding(get: { keys[kind] ?? "" }, set: { keys[kind] = $0 }))
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save") { model.saveKey(keys[kind] ?? "", for: kind); keys[kind] = ""; Task { await refresh() } }
+                        .disabled((keys[kind] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Test") { Task { await model.testKey(keys[kind] ?? "", for: kind) } }
+                        .disabled(model.keyTests[kind] == .testing || (model.hasKey[kind] != true && (keys[kind] ?? "").isEmpty))
+                }.padding(.leading, 26)
+                switch model.keyTests[kind] ?? .idle {
+                case .passed: Text("Key works.").font(.system(size: 12)).foregroundStyle(Theme.ok).padding(.leading, 26)
+                case .failed(let why): Text(why).font(.system(size: 12)).foregroundStyle(Theme.danger).padding(.leading, 26)
+                case .testing: Text("Testing…").font(.system(size: 12)).foregroundStyle(.secondary).padding(.leading, 26)
+                case .idle: EmptyView()
+                }
+            }
+        }
+    }
+}
+
+struct PersonasPane: View {
+    @State private var store = Prefs.shared.personas
+    @State private var editing = Prefs.shared.personas.activeID
+
+    private var current: Persona? { store.persona(editing) ?? store.personas.first }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Picker("Persona", selection: $editing) {
+                    ForEach(store.personas) { Text($0.name).tag($0.id) }
+                }.labelsHidden().frame(width: 200)
+                Button("New") { editing = store.create(name: "New persona", systemPrompt: "You help in a live conversation. Answer the latest question clearly and briefly.").id }
+                if let p = current {
+                    Button("Duplicate") { if let c = store.duplicate(p.id) { editing = c.id } }
+                    Button("Delete", role: .destructive) { if store.delete(p.id) { editing = store.activeID } }.disabled(p.isBuiltIn)
+                }
+                Spacer()
+            }
+            if let p = current {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !p.isBuiltIn {
+                        Row(title: "Name") {
+                            TextField("", text: Binding(get: { p.name }, set: { store.update(p.id, name: $0) })).textFieldStyle(.roundedBorder).frame(width: 220)
+                        }
+                        Divider()
+                    }
+                    Row(title: "Answer length", detail: "Changes the instruction the model gets.") {
+                        Picker("Length", selection: Binding(get: { p.length }, set: { store.update(p.id, length: $0) })) {
+                            ForEach(AnswerLength.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }.labelsHidden().pickerStyle(.segmented).frame(width: 210)
+                    }
+                    Divider()
+                    Text("System prompt").font(.system(size: 13, weight: .medium))
+                    TextEditor(text: Binding(get: { p.systemPrompt }, set: { store.update(p.id, systemPrompt: $0) }))
+                        .font(.system(size: 12)).frame(height: 150).scrollContentBackground(.hidden)
+                        .padding(4).background(Theme.fill, in: RoundedRectangle(cornerRadius: 6))
+                    if !p.suggestsAnswers { Text("This persona doesn't suggest answers.").font(.system(size: 12)).foregroundStyle(.secondary) }
+                    HStack {
+                        Button("Use this persona") { store.select(p.id) }.disabled(store.activeID == p.id)
+                        if p.isBuiltIn { Button("Reset to default") { store.reset(p.id) } }
+                        Spacer()
+                        if store.activeID == p.id { Label("Active", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.ok).font(.system(size: 12)) }
+                    }
+                }.card()
+            }
+        }
     }
 }
 
