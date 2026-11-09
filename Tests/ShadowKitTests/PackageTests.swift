@@ -277,10 +277,10 @@ final class PackageTests: XCTestCase {
     }
 
     func testOnlyOneBundleIDInScriptsAndWorkflows() throws {
-        for path in ["scripts/bundle.sh", "scripts/check-signing.sh", "scripts/test-signing.sh",
+        for path in ["scripts/bundle.sh", "scripts/sign-app.sh", "scripts/check-signing.sh", "scripts/test-signing.sh",
                      ".github/workflows/ci.yml", ".github/workflows/release.yml"] {
             let text = try repoFile(path)
-            for token in text.components(separatedBy: CharacterSet(charactersIn: "\"' \n$")) where token.hasPrefix("com.") {
+            for token in text.components(separatedBy: CharacterSet(charactersIn: "\"' \n$")) where token.hasPrefix("com.") && !token.hasPrefix("com.apple.") {
                 XCTAssertEqual(token, "com.kalahroudi.shadow", "\(path): \(token)")
             }
         }
