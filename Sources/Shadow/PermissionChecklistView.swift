@@ -6,15 +6,13 @@ import ShadowKit
 
 /// The "fix your permissions" checklist (R7). Used by onboarding and, later, by the Start path.
 struct PermissionChecklistView: View {
-    let checker: PermissionChecker
-    var registrar: PermissionRegistrar = SystemPermissionRegistrar()
+    let center: PermissionCenter
     /// Called after every re-read, so the owner can drop the checklist once everything is granted.
     var onRefresh: (() -> Void)?
     @State private var items: [ChecklistItem] = []
     @State private var copied: PermissionKind?
     /// Kinds where Allow was pressed and the permission is still missing, so the next steps show.
     @State private var tried: Set<PermissionKind> = []
-    private var center: PermissionCenter { PermissionCenter(checker: checker, registrar: registrar) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

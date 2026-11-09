@@ -1,22 +1,6 @@
 import XCTest
 @testable import ShadowKit
 
-private final class FakeRegistrar: PermissionRegistrar, @unchecked Sendable {
-    private let lock = NSLock()
-    private var calls: [PermissionKind] = []
-    var registered: [PermissionKind] { lock.withLock { calls } }
-    func register(_ kind: PermissionKind) async { lock.withLock { calls.append(kind) } }
-}
-
-private final class MutableChecker: PermissionChecker, @unchecked Sendable {
-    private let lock = NSLock()
-    private var states: [PermissionKind: PermissionState]
-    init(mic: PermissionState, screen: PermissionState) { states = [.microphone: mic, .screen: screen] }
-    func set(_ kind: PermissionKind, _ s: PermissionState) { lock.withLock { states[kind] = s } }
-    func status(_ kind: PermissionKind) -> PermissionState { lock.withLock { states[kind]! } }
-    func request(_ kind: PermissionKind) async -> PermissionState { status(kind) }
-}
-
 @MainActor
 final class PermissionCenterTests: XCTestCase {
     private func history() -> PermissionHistory {
@@ -62,5 +46,55 @@ final class PermissionCenterTests: XCTestCase {
         XCTAssertTrue(h.wasGranted(.microphone))
         XCTAssertFalse(h.wasGranted(.screen))
         XCTAssertEqual(d.object(forKey: PrefsDefaults.permissionGrantedMicrophone) as? Bool, true)
+    }
+
+    // A4 (Start path): one registration per missing kind, none for granted ones
+    func testRegisterMissingRegistersOnlyMissingOnce() async {
+        let reg = FakeRegistrar()
+        let center = PermissionCenter(checker: MutableChecker(mic: .granted, screen: .notYetAsked), registrar: reg, history: history())
+        await center.registerMissing()
+        XCTAssertEqual(reg.registered, [.screen])
+        let none = FakeRegistrar()
+        await PermissionCenter(checker: MutableChecker(mic: .granted, screen: .granted), registrar: none, history: history()).registerMissing()
+        XCTAssertEqual(none.registered, [])
+    }
+
+    // A5
+    func testLaunchDecisionTable() {
+        typealias L = LaunchRegistration
+        XCTAssertEqual(L.decide(onboardingCompleted: true, missing: [.microphone, .screen, .screen], alreadyRan: false), .register([.screen, .microphone]))
+        XCTAssertEqual(L.decide(onboardingCompleted: true, missing: [.microphone], alreadyRan: false), .register([.microphone]))
+        XCTAssertEqual(L.decide(onboardingCompleted: false, missing: [.screen], alreadyRan: false), .skip)
+        XCTAssertEqual(L.decide(onboardingCompleted: true, missing: [], alreadyRan: false), .skip)
+        XCTAssertEqual(L.decide(onboardingCompleted: true, missing: [.screen], alreadyRan: true), .skip)
+    }
+
+    func testRegisterOnLaunchRunsAtMostOncePerLaunch() async {
+        let reg = FakeRegistrar()
+        let center = PermissionCenter(checker: MutableChecker(mic: .notGranted, screen: .notGranted), registrar: reg, history: history())
+        await center.registerOnLaunch(onboardingCompleted: true)
+        await center.registerOnLaunch(onboardingCompleted: true)
+        XCTAssertEqual(reg.registered, [.screen, .microphone])
+    }
+
+    func testRegisterOnLaunchDoesNothingBeforeOnboardingOrWhenGranted() async {
+        let reg = FakeRegistrar()
+        await PermissionCenter(checker: MutableChecker(mic: .notGranted, screen: .notGranted), registrar: reg, history: history())
+            .registerOnLaunch(onboardingCompleted: false)
+        await PermissionCenter(checker: MutableChecker(mic: .granted, screen: .granted), registrar: reg, history: history())
+            .registerOnLaunch(onboardingCompleted: true)
+        XCTAssertEqual(reg.registered, [])
+    }
+
+    // A6
+    func testNeedsAttentionWhileMissingAfterLaunchAndClearsWhenGranted() async {
+        let checker = MutableChecker(mic: .granted, screen: .notGranted)
+        let center = PermissionCenter(checker: checker, registrar: FakeRegistrar(), history: history())
+        XCTAssertFalse(center.needsAttention)
+        await center.registerOnLaunch(onboardingCompleted: true)
+        XCTAssertTrue(center.needsAttention)
+        checker.set(.screen, .granted)
+        center.items()
+        XCTAssertFalse(center.needsAttention)
     }
 }

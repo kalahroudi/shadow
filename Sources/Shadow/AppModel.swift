@@ -10,6 +10,8 @@ final class AppModel {
     static let shared = AppModel()
 
     let checker: PermissionChecker = SystemPermissionChecker()
+    /// Registers missing permissions (Start, launch, Allow) and says whether the popover shows "Permissions needed" (R4-R6).
+    let permissions: PermissionCenter
     /// Start, Stop, live transcript, meters and elapsed time. The popover and, later, the overlay read it.
     let session: SessionCoordinator
     /// The one in-flight answer, Answer now and auto-suggest (R7, R8, R10). Idle unless a session runs.
@@ -34,13 +36,14 @@ final class AppModel {
     var levels: Levels { session.levels }
     var notices: [Notice] { session.notices }
     var showChecklist: Bool { session.showChecklist }
+    var needsPermissionsRow: Bool { permissions.needsAttention }
     @ObservationIgnored var onRunningChange: (@MainActor (Bool) -> Void)?
     var onNeedPopover: (@MainActor () -> Void)? { get { session.onNeedPopover } set { session.onNeedPopover = newValue } }
 
     private init() {
-        let checker = self.checker
+        permissions = PermissionCenter(checker: checker, registrar: SystemPermissionRegistrar())
         session = SessionCoordinator(
-            checker: checker,
+            permissions: permissions,
             makeController: { AppModel.makeRealController() },
             remindBeforeSession: { Prefs.shared.remindBeforeSession },
             confirmReminder: { AppModel.confirmReminder() },
@@ -107,6 +110,7 @@ final class AppModel {
     /// Stops a running session so its transcript is written; awaited when the app quits.
     func shutdown() async { await session.shutdown() }
     func recheckPermissions() { session.recheckPermissions() }
+    func openChecklist() { session.openChecklist() }
     func dismissNotice(_ id: Notice.ID) { session.dismissNotice(id) }
     /// Tells the user when a shortcut could not be registered, so a dead hotkey is never silent.
     func reportHotkeyConflicts(_ failed: some Collection<HotkeyAction>) {

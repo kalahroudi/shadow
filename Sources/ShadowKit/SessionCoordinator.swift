@@ -30,7 +30,7 @@ public final class SessionCoordinator {
     /// Called for every transcript change while a session runs (auto-suggest listens here).
     public var onTranscript: (@MainActor (TranscriptSnapshot) -> Void)?
 
-    private let checker: PermissionChecker
+    private let permissions: PermissionCenter
     private let makeController: @MainActor () -> SessionController?
     private let remindBeforeSession: @MainActor () -> Bool
     private let confirmReminder: @MainActor () -> Bool
@@ -40,13 +40,13 @@ public final class SessionCoordinator {
     private var controller: SessionController?
     private var watchers: [Task<Void, Never>] = []
 
-    public init(checker: PermissionChecker,
+    public init(permissions: PermissionCenter,
                 makeController: @escaping @MainActor () -> SessionController?,
                 remindBeforeSession: @escaping @MainActor () -> Bool,
                 confirmReminder: @escaping @MainActor () -> Bool,
                 locale: @escaping @MainActor () -> Locale,
                 now: @escaping @Sendable () -> Date = { Date() }) {
-        self.checker = checker; self.makeController = makeController
+        self.permissions = permissions; self.makeController = makeController
         self.remindBeforeSession = remindBeforeSession; self.confirmReminder = confirmReminder
         self.locale = locale; self.now = now
     }
@@ -59,7 +59,9 @@ public final class SessionCoordinator {
 
     public func elapsed(at date: Date) -> TimeInterval { startedAt.map { max(0, date.timeIntervalSince($0)) } ?? 0 }
 
-    public func recheckPermissions() { showChecklist = !Checklist.items(using: checker).isEmpty }
+    /// Re-reads the permissions. The checklist closes once nothing is missing; it opens only from Start or the "Permissions needed" row.
+    public func recheckPermissions() { if permissions.items().isEmpty { showChecklist = false } }
+    public func openChecklist() { showChecklist = true }
     public func dismissNotice(_ id: Notice.ID) { noticeCenter.dismiss(id: id) }
     public func clearNotices() { noticeCenter.clear() }
 
@@ -78,7 +80,8 @@ public final class SessionCoordinator {
     private func start() async {
         phase = .starting   // held through the reminder, so a hotkey during the modal can't start a second session
         clearNotices()
-        guard Checklist.items(using: checker).isEmpty else {
+        guard permissions.items().isEmpty else {
+            await permissions.registerMissing()   // never a silent failure: each missing permission gets a real request first
             showChecklist = true; phase = .idle; onNeedPopover?(); return   // nothing starts without both permissions
         }
         showChecklist = false

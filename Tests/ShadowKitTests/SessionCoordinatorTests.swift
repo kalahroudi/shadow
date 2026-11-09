@@ -1,12 +1,6 @@
 import XCTest
 @testable import ShadowKit
 
-private struct StubChecker: PermissionChecker {
-    var mic = PermissionState.granted, screen = PermissionState.granted
-    func status(_ kind: PermissionKind) -> PermissionState { kind == .microphone ? mic : screen }
-    func request(_ kind: PermissionKind) async -> PermissionState { status(kind) }
-}
-
 @MainActor private final class Flag { var value: Bool; init(_ v: Bool) { value = v } }
 
 @MainActor
@@ -24,9 +18,11 @@ final class SessionCoordinatorTests: XCTestCase {
                           store: SessionStore(directory: dir))
     }
 
-    private func coordinator(checker: StubChecker = StubChecker(), remind: Bool = false, confirm: @escaping @MainActor () -> Bool = { true },
+    private func coordinator(mic: PermissionState = .granted, screen: PermissionState = .granted, registrar: FakeRegistrar = FakeRegistrar(), remind: Bool = false, confirm: @escaping @MainActor () -> Bool = { true },
                              make: @escaping @MainActor () -> SessionController?) -> SessionCoordinator {
-        SessionCoordinator(checker: checker, makeController: make, remindBeforeSession: { remind }, confirmReminder: confirm,
+        SessionCoordinator(permissions: PermissionCenter(checker: MutableChecker(mic: mic, screen: screen), registrar: registrar,
+                                                         history: PermissionHistory(defaults: UserDefaults(suiteName: "coord-\(UUID().uuidString)")!)),
+                           makeController: make, remindBeforeSession: { remind }, confirmReminder: confirm,
                            locale: { Locale(identifier: "en-US") })
     }
 
@@ -64,16 +60,33 @@ final class SessionCoordinatorTests: XCTestCase {
         XCTAssertNil(c.message)
     }
 
-    func testMissingPermissionShowsChecklistAndStartsNothing() async {
-        var made = 0
-        let c = coordinator(checker: StubChecker(mic: .notGranted)) { made += 1; return self.controller() }
-        var popovers = 0
-        c.onNeedPopover = { popovers += 1 }
+    // A4
+    func testMissingPermissionRegistersOncePerMissingShowsChecklistAndStartsNothing() async {
+        let cases: [(PermissionState, PermissionState, [PermissionKind])] = [
+            (.notGranted, .granted, [.microphone]), (.granted, .notYetAsked, [.screen]), (.notYetAsked, .notGranted, [.screen, .microphone]),
+        ]
+        for (mic, screen, expected) in cases {
+            var made = 0
+            let reg = FakeRegistrar()
+            let c = coordinator(mic: mic, screen: screen, registrar: reg) { made += 1; return self.controller() }
+            var popovers = 0
+            c.onNeedPopover = { popovers += 1 }
+            await c.toggle()
+            XCTAssertEqual(reg.registered, expected)
+            XCTAssertEqual(made, 0)
+            XCTAssertTrue(c.showChecklist)
+            XCTAssertEqual(c.phase, .idle)
+            XCTAssertEqual(popovers, 1)
+        }
+    }
+
+    func testAllGrantedStartsWithoutRegistering() async {
+        let reg = FakeRegistrar()
+        let c = coordinator(registrar: reg) { self.controller() }
         await c.toggle()
-        XCTAssertEqual(made, 0)
-        XCTAssertTrue(c.showChecklist)
-        XCTAssertEqual(c.phase, .idle)
-        XCTAssertEqual(popovers, 1)
+        XCTAssertTrue(c.isRunning)
+        XCTAssertEqual(reg.registered, [])
+        await c.toggle()
     }
 
     func testDeclinedReminderStartsNothing() async {

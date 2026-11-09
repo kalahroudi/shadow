@@ -101,3 +101,20 @@ final class FakeSTTProvider: STTProvider, @unchecked Sendable {
         }
     }
 }
+
+final class FakeRegistrar: PermissionRegistrar, @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls: [PermissionKind] = []
+    var registered: [PermissionKind] { lock.withLock { calls } }
+    func register(_ kind: PermissionKind) async { lock.withLock { calls.append(kind) } }
+}
+
+final class MutableChecker: PermissionChecker, @unchecked Sendable {
+    private let lock = NSLock()
+    private var states: [PermissionKind: PermissionState]
+    init(mic: PermissionState, screen: PermissionState) { states = [.microphone: mic, .screen: screen] }
+    func set(_ kind: PermissionKind, _ s: PermissionState) { lock.withLock { states[kind] = s } }
+    func status(_ kind: PermissionKind) -> PermissionState { lock.withLock { states[kind]! } }
+    func request(_ kind: PermissionKind) async -> PermissionState { status(kind) }
+}
+
