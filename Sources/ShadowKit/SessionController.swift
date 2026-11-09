@@ -22,6 +22,8 @@ public actor SessionController {
     private var stopping = false
     private var tasks: [Task<Void, Never>] = []
     private var levels = Levels()
+    private var sinks: [Speaker: AsyncStream<TimedBuffer>.Continuation] = [:]
+    private var sourceDone: Set<Speaker> = []
     private var observers: [UUID: AsyncStream<Levels>.Continuation] = [:]
     private var noticeObservers: [UUID: AsyncStream<String>.Continuation] = [:]
 
@@ -100,28 +102,44 @@ public actor SessionController {
 
     // MARK: pipeline
 
-    /// Splits one source into a level meter and an STT consumer; returns the two tasks that run until the source ends.
+    /// Most restarts of one speaker's analyzer in a row before the user is told it stopped (R6, R7).
+    static let maxRestarts = 3
+
+    /// Splits one source into a level meter and a supervised STT consumer; returns the two tasks that run until the source ends.
+    /// The pump feeds whichever sink is current for the speaker, so a restarted analyzer keeps receiving audio.
     private func run(_ buffers: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> [Task<Void, Never>] {
-        let (forSTT, out) = AsyncStream<TimedBuffer>.makeStream()
+        sourceDone.remove(speaker)
         let pump = Task {
-            var sttAlive = true
             for await item in buffers {
                 self.setLevel(LevelMeter.level(of: item.buffer), for: speaker)
-                // Once the recogniser has failed nobody reads `out`; stop feeding it so audio doesn't pile up. The meter keeps going.
-                if sttAlive, case .terminated = out.yield(item) { sttAlive = false }
+                // A dead recogniser's sink is replaced by the supervisor; yielding to a terminated one is harmless.
+                _ = self.sinks[speaker]?.yield(item)
             }
-            out.finish()
+            self.sourceDone.insert(speaker)
+            self.sinks[speaker]?.finish()
             self.sourceEnded(speaker)
         }
-        let segments = stt.transcribe(forSTT, speaker: speaker, locale: locale)
         let consume = Task {
-            do {
-                for try await segment in segments {
-                    await self.transcript.add(segment)
-                    if segment.isFinal { await self.checkpoint() }
+            var restarts = 0
+            while true {
+                let (forSTT, sink) = AsyncStream<TimedBuffer>.makeStream()
+                self.sinks[speaker] = sink
+                if self.sourceDone.contains(speaker) { sink.finish() }
+                do {
+                    for try await segment in self.stt.transcribe(forSTT, speaker: speaker, locale: locale) {
+                        restarts = 0   // a working stream gets a fresh budget (R8)
+                        await self.transcript.add(segment)
+                        if segment.isFinal { await self.checkpoint() }
+                    }
+                    return
+                } catch {
+                    guard STTFailure.isRecoverable(error), restarts < Self.maxRestarts, self.session != nil else {
+                        self.speechFailed(speaker, error, locale: locale)
+                        return
+                    }
+                    restarts += 1
+                    AppLog.speechError(error, context: "restart \(restarts)/\(Self.maxRestarts) transcribe \(speaker.rawValue)", locale: locale)
                 }
-            } catch {
-                self.speechFailed(speaker, error)
             }
         }
         return [pump, consume]
@@ -135,13 +153,13 @@ public actor SessionController {
     }
 
     /// One stream's recogniser died: tell the user, keep the other stream and everything transcribed so far.
-    private func speechFailed(_ speaker: Speaker, _ error: Error) {
-        AppLog.error(error, context: "speech recognition for \(speaker.rawValue)")
+    private func speechFailed(_ speaker: Speaker, _ error: Error, locale: Locale) {
+        AppLog.speechError(error, context: "transcribe \(speaker.rawValue)", locale: locale)
         guard session != nil else { return }
         let who = speaker == .them ? "Them" : "You"
         let other = speaker == .them ? "You" : "Them"
-        let detail = (error as? UserFacingError)?.message
-        let message = "Speech recognition stopped for \(who)\(detail.map { ": \($0)" } ?? ""). Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
+        let detail = (error as? UserFacingError)?.message ?? "The speech recognizer hit an error."
+        let message = "Speech recognition stopped for \(who): \(detail). Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
         for c in noticeObservers.values { c.yield(message) }
     }
 

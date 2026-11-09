@@ -33,8 +33,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
                 } catch is CancellationError {
                     continuation.finish()
                 } catch {
-                    AppLog.speechError(error, context: "transcribe \(speaker.rawValue)", locale: locale)
-                    continuation.finish(throwing: error is UserFacingError ? error : UserFacingError("The speech recognizer hit an error."))
+                    // Rethrown as-is: SessionController classifies it (recoverable or not), logs it and words the notice.
+                    continuation.finish(throwing: error)
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
