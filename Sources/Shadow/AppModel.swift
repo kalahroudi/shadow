@@ -22,7 +22,7 @@ final class AppModel {
 
     var isRunning: Bool { session.isRunning }
     var levels: Levels { session.levels }
-    var message: String? { session.message }
+    var notices: [Notice] { session.notices }
     var showChecklist: Bool { session.showChecklist }
     var onRunningChange: (@MainActor (Bool) -> Void)? { get { session.onRunningChange } set { session.onRunningChange = newValue } }
     var onNeedPopover: (@MainActor () -> Void)? { get { session.onNeedPopover } set { session.onNeedPopover = newValue } }
@@ -63,7 +63,7 @@ final class AppModel {
     /// Stops a running session so its transcript is written; awaited when the app quits.
     func shutdown() async { await session.shutdown() }
     func recheckPermissions() { session.recheckPermissions() }
-    func dismissMessage() { session.dismissMessage() }
+    func dismissNotice(_ id: Notice.ID) { session.dismissNotice(id) }
     /// Tells the user when a shortcut could not be registered, so a dead hotkey is never silent.
     func reportHotkeyConflicts(_ failed: some Collection<HotkeyAction>) {
         guard let text = HotkeyAction.conflictMessage(for: failed) else { return }
