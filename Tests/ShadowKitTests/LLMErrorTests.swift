@@ -70,4 +70,12 @@ final class LLMErrorTests: XCTestCase {
         }
         XCTAssertEqual(LogScrubber.scrub("provider=apple model=on-device latency=120ms tokens=300"), "provider=apple model=on-device latency=120ms tokens=300")
     }
+
+    func testCopyDetailsKeepsTheFriendlyMessageAndCapsDetail() {
+        for kind in LLMError.Kind.allCases {
+            let out = LLMError(kind, detail: String(repeating: "z", count: 5000)).copyDetails(appVersion: "1")
+            XCTAssertTrue(out.contains(LLMError(kind).message), "scrubber ate the message for \(kind)")
+            XCTAssertLessThan(out.count, 1000)
+        }
+    }
 }

@@ -18,8 +18,17 @@ public struct BuiltContext: Equatable, Sendable {
 public enum ContextBuilder {
     public static let defaultBudgetTokens = 1_500
 
-    /// About four characters per token; good enough to size a prompt, and always rounds up.
-    public static func estimateTokens(_ text: String) -> Int { (text.count + 3) / 4 }
+    /// About four characters per token for Latin text, one per Japanese/Chinese/Korean character; good enough to size a prompt, and always rounds up.
+    public static func estimateTokens(_ text: String) -> Int {
+        var cjk = 0, other = 0
+        for ch in text.unicodeScalars {
+            switch ch.value {
+            case 0x1100...0x11FF, 0x2E80...0x9FFF, 0xAC00...0xD7AF, 0xF900...0xFAFF, 0xFF00...0xFFEF, 0x20000...0x2FFFF: cjk += 1
+            default: other += 1
+            }
+        }
+        return cjk + (other + 3) / 4
+    }
 
     public static func label(_ speaker: Speaker) -> String { speaker == .them ? "Them" : "You" }
 
@@ -50,7 +59,7 @@ public enum ContextBuilder {
         }
         let system = persona.effectivePrompt + "\n\n" + languageRule(language)
         return BuiltContext(system: system, user: user, includedTurns: kept.count, droppedTurns: lines.count - kept.count,
-                            newestExceedsBudget: kept.count == 1 && used > budgetTokens && budgetTokens >= 0,
+                            newestExceedsBudget: kept.count == 1 && used > max(0, budgetTokens),
                             estimatedTokens: estimateTokens(system) + estimateTokens(user))
     }
 }

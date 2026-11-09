@@ -22,9 +22,12 @@ public enum QuestionClassifier {
     /// Sentences with their terminators, trimmed; empty pieces dropped.
     static func split(_ text: String) -> [String] {
         var out: [String] = [], cur = ""
-        for ch in text.replacingOccurrences(of: "’", with: "'") {
+        let chars = Array(text.replacingOccurrences(of: "’", with: "'"))
+        for (i, ch) in chars.enumerated() {
             cur.append(ch)
-            if ".!?。！？".contains(ch) { out.append(cur); cur = "" }
+            // a "." inside "3.5" or "e.g.x" does not end a sentence; it must be followed by a space or the end
+            let ends = ch == "." ? (i + 1 == chars.count || chars[i + 1].isWhitespace) : "!?。！？".contains(ch)
+            if ends { out.append(cur); cur = "" }
         }
         out.append(cur)
         return out.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -100,7 +103,7 @@ public enum QuestionClassifier {
         Rules(
             wh: ["comment", "pourquoi", "quand", "où", "qui", "quel", "quelle", "quels", "quelles", "combien", "qu'est-ce", "est-ce",
                  "lequel", "laquelle", "quoi"],
-            whBlockedBy: ["je", "j'", "nous", "on"],
+            whBlockedBy: ["je", "j'", "nous"],
             openers: ["pouvez-vous", "peux-tu", "pourriez-vous", "pourrais-tu", "avez-vous", "as-tu", "es-tu", "êtes-vous", "est-il", "est-elle",
                       "sommes-nous", "savez-vous", "sais-tu", "voulez-vous", "veux-tu", "peut-on", "a-t-il", "a-t-elle"],
             requests: ["dites-moi", "dis-moi", "explique", "expliquez", "explique-moi", "expliquez-moi", "décris", "décrivez", "raconte",
@@ -110,14 +113,17 @@ public enum QuestionClassifier {
     // MARK: Japanese
 
     private static let jaEndings = ["か", "かな", "かね"]
-    private static let jaRequests = ["ください", "下さい", "お願い", "教えて", "説明して", "話して", "聞かせて", "答えて", "詳しく"]
+    /// A request is a sentence that ends in the request; "教えてくれました" (he told me) and "よろしくお願いします" (a greeting) are not.
+    private static let jaRequests = ["ください", "下さい", "お願いします", "お願いいたします", "お願い", "教えて", "説明して", "話して", "聞かせて", "答えて",
+                                     "教えてほしい", "教えてもらいたい"]
     private static let jaWh = ["なぜ", "どうして", "どのよう", "どうやって", "どんな", "何", "いつ", "どこ", "誰", "どれ", "どの", "いくつ", "いくら", "どう"]
 
     private static func japanese(_ s: String) -> Bool {
         guard s.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) }) else { return false }
         if s.hasPrefix("なぜなら") { return false }
         if jaEndings.contains(where: { s.hasSuffix($0) }) { return true }
-        if jaRequests.contains(where: { s.contains($0) }) { return true }
+        if s.hasPrefix("よろしく") || s.hasPrefix("どうぞよろしく") { return false }
+        if jaRequests.contains(where: { s.hasSuffix($0) }) { return true }
         // a question word with a closing の / かな / だろう is a question even without か
         return jaWh.contains(where: { s.contains($0) }) && (s.hasSuffix("の") || s.hasSuffix("だろう") || s.hasSuffix("でしょう"))
     }

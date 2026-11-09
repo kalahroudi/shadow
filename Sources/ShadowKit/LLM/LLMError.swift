@@ -15,7 +15,7 @@ public struct LLMError: Error, Equatable, Sendable {
 
     public var message: String {
         switch kind {
-        case .offline: return "Couldn't get an answer: check your internet connection and try again."
+        case .offline: return "Couldn't get an answer. Check your internet connection and try again."
         case .rateLimited: return "The language model is limiting requests right now. Wait a moment, then retry."
         case .badKey: return "The API key was rejected. Check it in Settings → Language model."
         case .modelNotFound: return "That model isn't available. Pick another one in Settings → Language model."
@@ -51,7 +51,8 @@ public struct LLMError: Error, Equatable, Sendable {
     /// Text for "Copy details": version, category and technical detail, scrubbed of paths, users and secrets.
     public func copyDetails(appVersion: String, home: String = NSHomeDirectory(), user: String = NSUserName()) -> String {
         var lines = ["Shadow \(appVersion)", "Language model error: \(kind.rawValue)", message]
-        if !detail.isEmpty { lines.append("Details: \(detail)") }
+        // the detail can carry a whole response body; keep the report (and the issue URL) a sane size
+        if !detail.isEmpty { lines.append("Details: \(String(detail.prefix(500)))") }
         return LogScrubber.scrub(lines.joined(separator: "\n"), home: home, user: user)
     }
 

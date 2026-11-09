@@ -60,4 +60,15 @@ final class ContextBuilderTests: XCTestCase {
             XCTAssertFalse(s.lowercased().contains("pcm"))
         }
     }
+
+    func testJapaneseIsNotUndercounted() {
+        XCTAssertEqual(ContextBuilder.estimateTokens(String(repeating: "あ", count: 100)), 100)
+        XCTAssertEqual(ContextBuilder.estimateTokens(String(repeating: "a", count: 100)), 25)
+    }
+
+    func testNegativeBudgetStillKeepsNewestAndFlagsIt() {
+        let c = ContextBuilder.build(persona: persona, language: .english, turns: [seg(.them, "hello", 0)], question: nil, budgetTokens: -5)
+        XCTAssertEqual(c.includedTurns, 1)
+        XCTAssertTrue(c.newestExceedsBudget)
+    }
 }

@@ -69,4 +69,17 @@ final class QuestionClassifierTests: XCTestCase {
         XCTAssertEqual(QuestionClassifier.classify("   "), .notQuestion)
         XCTAssertEqual(QuestionClassifier.classify("..."), .notQuestion)
     }
+
+    func testDecimalPointDoesNotEndASentence() {
+        XCTAssertNotNil(QuestionClassifier.classify("What do you think about version 3.5").text)
+        XCTAssertEqual(QuestionClassifier.classify("What do you think about version 3.5").text, "What do you think about version 3.5")
+    }
+
+    func testFrenchOnQuestionsAndJapanesePastTenseOrGreeting() {
+        XCTAssertNotNil(QuestionClassifier.classify("Comment on fait ça").text)
+        for s in ["よろしくお願いします。", "詳しく説明しました。", "先生が教えてくれました。"] {
+            XCTAssertEqual(QuestionClassifier.classify(s), .notQuestion, s)
+        }
+        XCTAssertNotNil(QuestionClassifier.classify("詳しく教えてください").text)
+    }
 }
