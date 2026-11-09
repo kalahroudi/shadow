@@ -40,7 +40,7 @@ final class ShellStateTests: XCTestCase {
         let r = HotkeyMap.storedResolvingAnswerNow { $0 == .toggleCompact ? "cmd+shift+a" : nil }
         XCTAssertEqual(r.map[.toggleCompact], Hotkey("cmd+shift+a"), "the user's saved binding is kept")
         XCTAssertEqual(r.map[.answerNow], Hotkey("cmd+opt+a"))
-        XCTAssertEqual(r.move?.message, "Answer now moved to ⌘⌥A because ⌘⇧A is already used by Compact / expand.")
+        XCTAssertEqual(r.move?.message, "Answer now moved to ⌥⌘A because ⌘⇧A is already used by Compact / expand.")
         XCTAssertEqual(HotkeyMap.stored { $0 == .toggleCompact ? "cmd+shift+a" : nil }, r.map)
     }
 
