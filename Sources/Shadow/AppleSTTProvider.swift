@@ -74,6 +74,16 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         var value: Error? { lock.withLock { error } }
     }
 
+    /// The feed loop writes the clock and the results task reads it, so guard it with a lock.
+    private final class ClockBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var clock = AnalyzerClock()
+        func start(sessionTime: TimeInterval, frames: Int, sampleRate: Double) -> TimeInterval {
+            lock.withLock { clock.start(sessionTime: sessionTime, frames: frames, sampleRate: sampleRate) }
+        }
+        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { clock.sessionTime(forAnalyzerTime: t) } }
+    }
+
     private static func run(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale,
                             into out: AsyncThrowingStream<Segment, Error>.Continuation) async throws {
         let resolved = await SpeechTranscriber.supportedLocale(equivalentTo: locale) ?? locale
@@ -85,6 +95,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         let (inputs, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
         let localeID = resolved.identifier(.bcp47)
         let failure = Failure()
+        // One clock per run: each stream (and each restart) has independent, monotonic analyzer time (R1, R5).
+        let clock = ClockBox()
 
         let results = Task {
             do {
@@ -92,10 +104,11 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
                     let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { continue }
                     let range = result.range
+                    let start = range.start.seconds, end = range.end.seconds
                     let confidence = result.text.runs.compactMap { $0.transcriptionConfidence }
                     out.yield(Segment(speaker: speaker, text: text,
-                                      start: range.start.seconds.isFinite ? range.start.seconds : 0,
-                                      end: range.end.seconds.isFinite ? range.end.seconds : 0,
+                                      start: start.isFinite ? clock.sessionTime(forAnalyzerTime: start) : 0,
+                                      end: end.isFinite ? clock.sessionTime(forAnalyzerTime: end) : 0,
                                       locale: localeID,
                                       confidence: confidence.isEmpty ? 1 : confidence.reduce(0, +) / Double(confidence.count),
                                       isFinal: result.isFinal))
@@ -114,7 +127,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         for await item in source {
             if failure.value != nil { break }
             guard let buffer = convert(item.buffer, to: target, using: &converter) else { continue }
-            inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: item.time, preferredTimescale: 48_000)))
+            let start = clock.start(sessionTime: item.time, frames: Int(buffer.frameLength), sampleRate: buffer.format.sampleRate)
+            inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: start, preferredTimescale: 48_000)))
         }
         inputContinuation.finish()
         if failure.value == nil { try await analyzer.finalizeAndFinishThroughEndOfInput() }
