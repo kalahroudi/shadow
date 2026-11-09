@@ -17,12 +17,6 @@ jobs:
     runs-on: macos-26
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
-      SIGN_IDENTITY_SECRET: ${{ secrets.SIGN_IDENTITY }}
-      SIGN_CERT_P12: ${{ secrets.SIGN_CERT_P12 }}
-      SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
-      NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
-      NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
-      NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +36,13 @@ jobs:
         run: swift test
       - name: Import signing certificate
         id: sign
+        env:
+          SIGN_IDENTITY_SECRET: ${{ secrets.SIGN_IDENTITY }}
+          SIGN_CERT_P12: ${{ secrets.SIGN_CERT_P12 }}
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
         run: |
           if [ -n "$SIGN_IDENTITY_SECRET" ] && [ -n "$SIGN_CERT_P12" ] && [ -n "$SIGN_CERT_PASSWORD" ] \
              && [ -n "$NOTARY_APPLE_ID" ] && [ -n "$NOTARY_TEAM_ID" ] && [ -n "$NOTARY_PASSWORD" ]; then
@@ -62,6 +63,7 @@ jobs:
       - name: Bundle
         env:
           SIGNED: ${{ steps.sign.outputs.signed }}
+          SIGN_IDENTITY_SECRET: ${{ secrets.SIGN_IDENTITY }}
         run: |
           if [ "$SIGNED" = "true" ]; then export SIGN_IDENTITY="$SIGN_IDENTITY_SECRET"; fi
           APP_REPO=$GITHUB_REPOSITORY scripts/bundle.sh "${{ steps.ver.outputs.version }}"
@@ -74,6 +76,10 @@ jobs:
           hdiutil create -volname Shadow -srcfolder dmgroot -ov -format UDZO "release/Shadow-$VERSION.dmg"
       - name: Notarize
         if: steps.sign.outputs.signed == 'true'
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
           xcrun notarytool submit "release/Shadow-$VERSION.dmg" --apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" --password "$NOTARY_PASSWORD" --wait

@@ -28,7 +28,7 @@ final class Prefs {
     /// Check for updates at launch (R1, R14). On by default.
     var autoUpdateChecks: Bool { didSet { d.set(autoUpdateChecks, forKey: PrefsDefaults.autoUpdateChecks) } }
     /// Local-only mode (R18): Shadow never contacts GitHub. Off by default.
-    var localOnly: Bool { didSet { d.set(localOnly, forKey: PrefsDefaults.localOnly) } }
+    var localOnly: Bool { didSet { d.set(localOnly, forKey: PrefsDefaults.localOnly); Updater.shared.refreshGate() } }
 
     /// Popover choices (R17). They take effect immediately. Persona is UI only in milestone 1.
     var persona: Persona { didSet { d.set(persona.rawValue, forKey: "persona") } }

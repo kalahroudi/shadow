@@ -11,9 +11,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowController()
     private var window: NSWindow?
 
-    func show(pane: SettingsPane = .speech) {
+    func show(pane: SettingsPane? = nil) {
         if let window {
-            window.contentView = NSHostingView(rootView: SettingsView(pane: pane))
+            if let pane { window.contentView = NSHostingView(rootView: SettingsView(pane: pane)) }
             window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return
         }
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
@@ -21,7 +21,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         w.title = "Shadow Settings"
         w.isReleasedWhenClosed = false
         w.delegate = self
-        w.contentView = NSHostingView(rootView: SettingsView(pane: pane))
+        w.contentView = NSHostingView(rootView: SettingsView(pane: pane ?? .speech))
         w.center()
         window = w
         w.makeKeyAndOrderFront(nil)

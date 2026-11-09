@@ -154,6 +154,14 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertNil(UpdateInstaller.expectedDigest(for: "b.dmg", in: "\(h)  a.dmg"))
     }
 
+    func testAssetNameWithPathSeparatorIsRefused() async throws {
+        let base = "https://github.com/kalahroudi/shadow/releases/download/v1.1.0/"
+        let evil = AvailableUpdate(version: "1.1.0", notes: "", asset: .init(name: "a/b.dmg", url: URL(string: base + "a%2Fb.dmg")!, size: nil),
+                                   checksums: URL(string: base + "SHA256SUMS"))
+        try await assertFails(.badRelease, evil)
+        XCTAssertTrue(transport.downloads.isEmpty)
+    }
+
     func testDownloadErrorStatusAborts() async throws {
         transport.statuses["Shadow-1.1.0.dmg"] = 404
         try await assertFails(.badRelease)

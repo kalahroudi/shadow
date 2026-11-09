@@ -123,7 +123,7 @@ public struct UpdateInstaller: Sendable {
     private func run(_ update: AvailableUpdate, progress: @Sendable (InstallStep, Double) -> Void) async throws -> URL {
         let fm = FileManager.default
         let name = update.asset.url.lastPathComponent
-        guard !name.isEmpty, !name.hasPrefix(".") else { throw UpdateError(.badRelease, detail: "unusable asset name") }
+        guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains("\\"), name == update.asset.name else { throw UpdateError(.badRelease, detail: "unusable asset name") }
         let asset = paths.updatesDir.appendingPathComponent(name)
         let sums = paths.updatesDir.appendingPathComponent(UpdateCheck.checksumsName)
 
