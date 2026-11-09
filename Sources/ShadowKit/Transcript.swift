@@ -24,6 +24,7 @@ public struct Segment: Sendable, Codable, Equatable {
 public struct TranscriptSnapshot: Sendable, Equatable {
     public var finals: [Segment] = []
     public var partials: [Speaker: Segment] = [:]
+    public init() {}
 
     /// Finals followed by partials, ordered by start time.
     public var lines: [Segment] { (finals + partials.values).sorted { $0.start < $1.start } }

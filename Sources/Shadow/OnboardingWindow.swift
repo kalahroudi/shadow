@@ -34,8 +34,16 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 struct OnboardingView: View {
     let checker: PermissionChecker
     let onFinish: () -> Void
-    @State private var model = OnboardingModel()
+    @State private var model: OnboardingModel
     @State private var prefs = Prefs.shared
+
+    init(checker: PermissionChecker, step: OnboardingModel.Step = .welcome, onFinish: @escaping () -> Void) {
+        self.checker = checker
+        self.onFinish = onFinish
+        var m = OnboardingModel()
+        while m.step != step { _ = m.advance() }
+        _model = State(initialValue: m)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
