@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.applicationIconImage = AppIcon.image(size: 512, padded: true)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = StatusIcon.image(.idle)
+        statusItem.button?.image = StatusIcon.image(.from(sessionRunning: false))
         statusItem.button?.target = self
         statusItem.button?.action = #selector(statusClicked)
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -27,6 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
+
+        let model = AppModel.shared
+        model.onRunningChange = { [weak self] running in self?.statusItem.button?.image = StatusIcon.image(.from(sessionRunning: running)) }
+        model.onNeedPopover = { [weak self] in self?.showPopover() }
+        HotkeyCenter.shared.onAction = { model.handle($0) }
+        HotkeyCenter.shared.register(Prefs.shared.hotkeys)
 
         if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }
     }
@@ -46,8 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func togglePopover() {
-        if popover.isShown { popover.performClose(nil); return }
-        guard let button = statusItem.button else { return }
+        if popover.isShown { popover.performClose(nil) } else { showPopover() }
+    }
+
+    private func showPopover() {
+        guard !popover.isShown, let button = statusItem.button else { return }
         applyAppearance()
         let host = NSHostingController(rootView: PopoverView())
         host.sizingOptions = .preferredContentSize
@@ -59,6 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         popover.contentViewController = nil   // release the popover's views while hidden
     }
+
+    func applicationWillTerminate(_ notification: Notification) { HotkeyCenter.shared.unregisterAll() }
 
     // The app lives in the menu bar: closing the last window must not quit it.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

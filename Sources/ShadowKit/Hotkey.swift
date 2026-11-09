@@ -18,7 +18,7 @@ public struct Hotkey: Sendable, Equatable, Hashable, Codable {
     public init(keyCode: UInt32, modifiers: Modifiers) { self.keyCode = keyCode; self.modifiers = modifiers }
 
     // ANSI virtual key codes.
-    private static let keys: [(String, UInt32)] = [
+    fileprivate static let keys: [(String, UInt32)] = [
         ("a", 0), ("s", 1), ("d", 2), ("f", 3), ("h", 4), ("g", 5), ("z", 6), ("x", 7), ("c", 8), ("v", 9),
         ("b", 11), ("q", 12), ("w", 13), ("e", 14), ("r", 15), ("y", 16), ("t", 17),
         ("1", 18), ("2", 19), ("3", 20), ("4", 21), ("6", 22), ("5", 23), ("9", 25), ("7", 26), ("8", 28), ("0", 29),
@@ -52,6 +52,16 @@ public struct Hotkey: Sendable, Equatable, Hashable, Codable {
         let mods = Self.modifierNames.filter { modifiers.contains($0.1) }.map(\.0)
         let key = Self.keys.first { $0.1 == keyCode }?.0 ?? "?"
         return (mods + [key]).joined(separator: "+")
+    }
+}
+
+extension Hotkey {
+    /// The keycap form for the UI, e.g. "⌘⇧Space".
+    public var display: String {
+        let glyphs: [(Modifiers, String)] = [(.control, "⌃"), (.option, "⌥"), (.command, "⌘"), (.shift, "⇧")]
+        let key = Self.keys.first { $0.1 == keyCode }?.0 ?? "?"
+        let name = key.count == 1 ? key.uppercased() : key.capitalized
+        return glyphs.filter { modifiers.contains($0.0) }.map(\.1).joined() + name
     }
 }
 

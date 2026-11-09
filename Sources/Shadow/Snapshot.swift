@@ -22,8 +22,8 @@ enum SnapshotMode {
     struct Shot { let name: String; let dark: Bool; let size: CGSize; let make: @MainActor () -> AnyView }
 
     @MainActor static var shots: [Shot] {
-        [Shot(name: "popover", dark: false, size: CGSize(width: 360, height: 120)) { AnyView(PopoverView()) },
-         Shot(name: "popover-dark", dark: true, size: CGSize(width: 360, height: 120)) { AnyView(PopoverView()) }]
+        [Shot(name: "popover", dark: false, size: CGSize(width: 360, height: 480)) { AnyView(PopoverView()) },
+         Shot(name: "popover-dark", dark: true, size: CGSize(width: 360, height: 480)) { AnyView(PopoverView()) }]
     }
 
     @MainActor static func render(_ shot: Shot, to dir: String) async {
