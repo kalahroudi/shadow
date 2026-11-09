@@ -27,6 +27,12 @@ security create-keychain -p "$KC_PW" "$KC"
 security set-keychain-settings "$KC"
 security unlock-keychain -p "$KC_PW" "$KC"
 SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh
+# Idempotent: a second run creates nothing, and asking it to export a key it no longer has is an error.
+SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh >/dev/null || fail "second make-signing-identity run failed"
+[ "$(security find-certificate -a -c "Shadow Signing" "$KC" | grep -c '"labl"')" = 1 ] || fail "Shadow Signing was duplicated"
+if SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh --export-p12 "$TMP/x.p12" >/dev/null 2>&1; then
+  fail "--export-p12 on an existing identity should fail"
+fi
 security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PW" "$KC" >/dev/null
 
 build() { # <name> <version> [env assignments...]
@@ -39,11 +45,22 @@ build() { # <name> <version> [env assignments...]
 # so cdhash differs while the designated requirement must not.
 build stable1 0.0.1-sign-test SIGNING_IDENTITY="Shadow Signing"
 build stable2 0.0.2-sign-test SIGNING_IDENTITY="Shadow Signing"
+build auto 0.0.5-sign-test                       # no SIGNING_IDENTITY: picks Shadow Signing from the keychain
+KC_EMPTY="$TMP/empty.keychain-db"
+security create-keychain -p "$KC_PW" "$KC_EMPTY"
+build fallback 0.0.6-sign-test SIGNING_KEYCHAIN="$KC_EMPTY"   # nothing usable: ad-hoc with a warning, exit 0
 build adhoc1 0.0.3-sign-test SIGNING_IDENTITY=-
 build adhoc2 0.0.4-sign-test SIGNING_IDENTITY=-
 
 S1="$TMP/stable1/Shadow.app"; S2="$TMP/stable2/Shadow.app"
 A1="$TMP/adhoc1/Shadow.app"; A2="$TMP/adhoc2/Shadow.app"
+
+[ "$(dr_of "$TMP/auto/Shadow.app")" = "$(dr_of "$S1")" ] || fail "auto-detected identity did not give the Shadow Signing DR"
+grep -q "WARNING: no stable signing identity" "$TMP/fallback.log" || fail "ad-hoc fallback did not warn loudly"
+case "$(dr_of "$TMP/fallback/Shadow.app")" in 'identifier "com.kalahroudi.shadow"') ;; *) fail "fallback is not ad-hoc" ;; esac
+for app in "$S1" "$S2" "$TMP/auto/Shadow.app"; do
+  codesign -d --entitlements - "$app" 2>&1 | grep -q "com.apple.security.device.audio-input" || fail "entitlements missing from $app"
+done
 
 echo "stable DR 1: $(dr_of "$S1")"
 echo "stable DR 2: $(dr_of "$S2")"

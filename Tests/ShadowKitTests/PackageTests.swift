@@ -211,6 +211,8 @@ final class PackageTests: XCTestCase {
                        "contents: write", "swift test", "hdiutil create", "ad-hoc"] {
             XCTAssertTrue(rel.contains(needle), needle)
         }
+        XCTAssertTrue(rel.contains("export SIGNING_IDENTITY="), "bundle.sh reads SIGNING_IDENTITY, not the old name")
+        XCTAssertFalse(rel.contains("export SIGN_IDENTITY="))
         XCTAssertTrue(rel.contains("secrets.SIGN_IDENTITY") || rel.contains("secrets.DEVELOPER_ID"), "signing is secret-gated")
     }
 

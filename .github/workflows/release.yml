@@ -65,7 +65,7 @@ jobs:
           SIGNED: ${{ steps.sign.outputs.signed }}
           SIGN_IDENTITY_SECRET: ${{ secrets.SIGN_IDENTITY }}
         run: |
-          if [ "$SIGNED" = "true" ]; then export SIGN_IDENTITY="$SIGN_IDENTITY_SECRET"; fi
+          if [ "$SIGNED" = "true" ]; then export SIGNING_IDENTITY="$SIGN_IDENTITY_SECRET"; fi
           APP_REPO=$GITHUB_REPOSITORY scripts/bundle.sh "${{ steps.ver.outputs.version }}"
       - name: Create DMG
         run: |

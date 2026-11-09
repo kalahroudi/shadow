@@ -34,8 +34,11 @@ report() {
 
 if [ -n "$(list -v)" ] || [ -n "$(list)" ]; then
   echo "\"$NAME\" already exists; nothing to do."
-  [ -z "$EXPORT_P12" ] || echo "note: --export-p12 ignored; the private key can only be exported when the identity is created." >&2
   report
+  if [ -n "$EXPORT_P12" ]; then
+    echo "error: --export-p12 not done; the private key can only be exported when the identity is created." >&2
+    exit 3
+  fi
   exit 0
 fi
 
@@ -59,13 +62,7 @@ CNF
 "$OPENSSL" req -x509 -newkey rsa:2048 -nodes -keyout "$WORK/key.pem" -out "$WORK/cert.pem" \
   -days 7300 -config "$WORK/cert.cnf" 2>/dev/null
 
-# Import through a p12 with a throwaway password that is never printed.
-IMPORT_PW="$("$OPENSSL" rand -hex 16)"
-PW_ENV="$IMPORT_PW" "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-  -out "$WORK/import.p12" -passout env:PW_ENV
-# -T limits access to codesign; no -A, so other apps cannot use the key.
-security import "$WORK/import.p12" -k "$KEYCHAIN" -P "$IMPORT_PW" -T /usr/bin/codesign >/dev/null
-
+# Export first: if it fails nothing has been added to the keychain, so the run can simply be repeated.
 if [ -n "$EXPORT_P12" ]; then
   P12_PW="$("$OPENSSL" rand -hex 16)"
   PW_ENV="$P12_PW" "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
@@ -73,10 +70,16 @@ if [ -n "$EXPORT_P12" ]; then
   chmod 600 "$EXPORT_P12"
 fi
 
+# Import through a p12 with a throwaway password that is never printed.
+IMPORT_PW="$("$OPENSSL" rand -hex 16)"
+PW_ENV="$IMPORT_PW" "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
+  -out "$WORK/import.p12" -passout env:PW_ENV
+# -T limits access to codesign; no -A, so other apps cannot use the key.
+security import "$WORK/import.p12" -k "$KEYCHAIN" -P "$IMPORT_PW" -T /usr/bin/codesign >/dev/null
+
 # Trust is only needed if codesign refuses the identity. Test with a throwaway binary.
 SHA="$("$OPENSSL" x509 -in "$WORK/cert.pem" -noout -fingerprint -sha1 | sed 's/.*=//;s/://g' | tr 'A-F' 'a-f')"
-printf 'int main(void){return 0;}\n' > "$WORK/t.c"
-cc "$WORK/t.c" -o "$WORK/t"
+cp /usr/bin/true "$WORK/t"   # no compiler needed
 if ! codesign --force --keychain "$KEYCHAIN" --sign "$SHA" "$WORK/t" >/dev/null 2>&1; then
   echo "codesign did not accept the new identity; marking it trusted for code signing (current user only)..."
   security add-trusted-cert -p codeSign -k "$KEYCHAIN" "$WORK/cert.pem"
