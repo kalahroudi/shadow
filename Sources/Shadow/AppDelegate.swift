@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         let model = AppModel.shared
         model.onRunningChange = { [weak self] running in self?.statusItem.button?.image = StatusIcon.image(.from(sessionRunning: running)) }
+        model.onOpenSettings = { [weak self] in self?.popover.performClose(nil); SettingsWindowController.shared.show() }
         model.onNeedPopover = { [weak self] in self?.showPopover() }
         HotkeyCenter.shared.onAction = { model.handle($0) }
         model.reportHotkeyConflicts(HotkeyCenter.shared.register(Prefs.shared.hotkeys).keys)
@@ -47,10 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func statusClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let m = NSMenu()
+            let settings = m.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+            settings.target = self
             m.addItem(withTitle: "Quit Shadow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             statusItem.menu = m; statusItem.button?.performClick(nil); statusItem.menu = nil   // menu only for this click
         } else { togglePopover() }
     }
+
+    @objc private func openSettings() { SettingsWindowController.shared.show() }
 
     private func togglePopover() {
         if popover.isShown { popover.performClose(nil) } else { showPopover() }

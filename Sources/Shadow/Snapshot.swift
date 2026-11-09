@@ -60,6 +60,9 @@ enum SnapshotMode {
             all.append(overlay(.listening, compact: true, dark: dark))
             all.append(overlay(.listening, compact: false, dark: dark))
             all.append(Shot(name: "popover" + sfx, dark: dark, size: CGSize(width: 360, height: 480)) { AnyView(PopoverView()) })
+            for pane in SettingsPane.allCases {
+                all.append(Shot(name: "settings-\(pane.rawValue)" + sfx, dark: dark, size: CGSize(width: 640, height: 480)) { AnyView(SettingsView(pane: pane)) })
+            }
             for (i, step) in OnboardingModel.Step.allCases.enumerated() {
                 all.append(Shot(name: "onboarding-\(i + 1)-\(step)" + sfx, dark: dark, size: CGSize(width: 560, height: 520)) {
                     AnyView(OnboardingView(checker: SampleChecker(), step: step) {})
