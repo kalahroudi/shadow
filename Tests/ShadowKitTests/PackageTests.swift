@@ -59,4 +59,46 @@ final class PackageTests: XCTestCase {
         XCTAssertTrue(BuildInfo(commit: "abcdef1234-dirty").isDirty)
         XCTAssertEqual(BuildInfo(commit: nil).shortCommit, "dev")
     }
+
+    func testBuildInfoParsesStampedKeysAndSelfTestLine() {
+        let info = BuildInfo(infoDictionary: ["ShadowCommit": "abc123-dirty", "ShadowRepo": "me/shadow", "ShadowBranch": "dev",
+                                              "CFBundleShortVersionString": "1.2.3"])
+        XCTAssertEqual(info, BuildInfo(commit: "abc123-dirty", repo: "me/shadow", branch: "dev", version: "1.2.3"))
+        XCTAssertEqual(info.selfTestLine, "ok abc123-dirty")
+        let dev = BuildInfo(infoDictionary: [:])
+        XCTAssertNil(dev.commit)
+        XCTAssertEqual(dev.selfTestLine, "ok dev")
+        XCTAssertEqual(BuildInfo(commit: "unknown").selfTestLine, "ok dev")
+    }
+
+    func testCIChecksStampedPlistKeysAndSelfTestCommit() throws {
+        let ci = try repoFile(".github/workflows/ci.yml")
+        for needle in ["PlistBuddy", "ShadowCommit", "ShadowRepo", "CFBundleShortVersionString", "ok $COMMIT"] {
+            XCTAssertTrue(ci.contains(needle), needle)
+        }
+    }
+
+    func testReleaseWorkflow() throws {
+        let rel = try repoFile(".github/workflows/release.yml")
+        for needle in ["tags:", "v*.*.*", "gh release create", "SHA256SUMS", "APP_REPO=$GITHUB_REPOSITORY", "scripts/bundle.sh",
+                       "contents: write", "swift test", "hdiutil create", "ad-hoc"] {
+            XCTAssertTrue(rel.contains(needle), needle)
+        }
+        XCTAssertTrue(rel.contains("secrets.SIGN_IDENTITY") || rel.contains("secrets.DEVELOPER_ID"), "signing is secret-gated")
+    }
+
+    func testPagesWorkflowPublishesDocs() throws {
+        let pages = try repoFile(".github/workflows/pages.yml")
+        XCTAssertTrue(pages.contains("path: docs"))
+        XCTAssertTrue(pages.contains("deploy-pages"))
+    }
+
+    func testReadmeDocumentsReleaseAndUpdates() throws {
+        let readme = try repoFile("README.md")
+        for needle in ["## Cutting a release", "## How updates work", "Local-only", "SHA256SUMS", "Shadow.previous.app", "right-click",
+                       "Homebrew cask", "notarization"] {
+            XCTAssertTrue(readme.contains(needle), needle)
+        }
+        XCTAssertFalse(readme.contains("no release build yet"))
+    }
 }
