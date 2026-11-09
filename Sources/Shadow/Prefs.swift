@@ -33,9 +33,15 @@ final class Prefs {
 
     /// Global shortcuts, one string per action; invalid or conflicting values fall back to the defaults (R18).
     var hotkeys: HotkeyMap { HotkeyMap.stored { self.d.string(forKey: "hotkey.\($0.rawValue)") } }
-    func setHotkeys(_ map: HotkeyMap) {
+    /// Rebinds without a relaunch. If macOS refuses any shortcut nothing is saved, the previous shortcuts stay live
+    /// and the refused actions are returned.
+    @discardableResult
+    func setHotkeys(_ map: HotkeyMap) -> [HotkeyAction: UserFacingError] {
+        let previous = hotkeys
+        let failed = HotkeyCenter.shared.register(map)
+        guard failed.isEmpty else { HotkeyCenter.shared.register(previous); return failed }
         for (action, key) in map { d.set(key.string, forKey: "hotkey.\(action.rawValue)") }
-        HotkeyCenter.shared.register(map)   // a rebind applies without a relaunch
+        return [:]
     }
 
     private(set) var launchAtLogin: Bool = false

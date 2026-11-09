@@ -36,3 +36,13 @@ extension Dictionary where Key == HotkeyAction, Value == Hotkey {
         return map
     }
 }
+
+extension HotkeyAction {
+    /// One friendly sentence for shortcuts macOS refused to register, or nil when none failed. Order follows `allCases`.
+    public static func conflictMessage(for failed: some Collection<HotkeyAction>) -> String? {
+        let names = allCases.filter(failed.contains).map { "“\($0.label)”" }
+        guard !names.isEmpty else { return nil }
+        let list = names.count == 1 ? names[0] : names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
+        return "Another app already uses the shortcut for \(list). Pick a different one in Settings."
+    }
+}

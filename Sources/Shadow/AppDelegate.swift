@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.onRunningChange = { [weak self] running in self?.statusItem.button?.image = StatusIcon.image(.from(sessionRunning: running)) }
         model.onNeedPopover = { [weak self] in self?.showPopover() }
         HotkeyCenter.shared.onAction = { model.handle($0) }
-        HotkeyCenter.shared.register(Prefs.shared.hotkeys)
+        model.reportHotkeyConflicts(HotkeyCenter.shared.register(Prefs.shared.hotkeys).keys)
 
         if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }
     }

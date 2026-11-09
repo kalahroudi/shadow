@@ -47,6 +47,11 @@ final class AppModel {
     }
 
     func recheckPermissions() { showChecklist = !Checklist.items(using: checker).isEmpty }
+    /// Tells the user when a shortcut could not be registered, so a dead hotkey is never silent.
+    func reportHotkeyConflicts(_ failed: some Collection<HotkeyAction>) {
+        guard let text = HotkeyAction.conflictMessage(for: failed) else { return }
+        message = text; onNeedPopover?()
+    }
     func dismissMessage() { message = nil }
 
     private func start() async {

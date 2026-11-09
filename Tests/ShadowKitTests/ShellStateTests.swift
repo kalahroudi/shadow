@@ -30,6 +30,13 @@ final class ShellStateTests: XCTestCase {
         XCTAssertEqual(map[.toggleClickThrough], HotkeyMap.defaults[.toggleClickThrough])
     }
 
+    func testConflictMessageNamesRefusedActions() {
+        XCTAssertNil(HotkeyAction.conflictMessage(for: [HotkeyAction]()))
+        XCTAssertTrue(HotkeyAction.conflictMessage(for: [.toggleSession])!.contains("“\(HotkeyAction.toggleSession.label)”"))
+        let two = HotkeyAction.conflictMessage(for: [.toggleCompact, .toggleOverlay])!
+        XCTAssertTrue(two.contains("\(HotkeyAction.toggleOverlay.label)”, ") || two.contains("” and “"))
+    }
+
     func testNoSourceUsesSharingTypeNone() throws {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { root.deleteLastPathComponent() }
