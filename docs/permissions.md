@@ -12,9 +12,11 @@ Shadow needs two privacy permissions: **Screen & System Audio Recording** (`kTCC
 
 ## Decision: is kTCCServiceAudioCapture needed?
 
-**Provisional answer: no. To be confirmed by the audit below.**
+**Undecided. Provisional lean: no, but there is no measured evidence yet.**
 
-Reasoning (from Apple's documented behavior, not yet measured here):
+To decide, run the audit below on a real Mac, at least the ad-hoc and self-signed rows for `CGRequestScreenCaptureAccess`, `SCShareableContent` and an audio-only `SCStream`, and read the "System Audio Recording Only" column. Until those cells are filled in, treat this as an open question and do not rely on the reasoning below.
+
+Reasoning (from Apple's documented behavior, not measured here):
 
 - Shadow captures system audio with an audio-only `SCStream` (`Sources/Shadow/SCKAudioSource.swift`). ScreenCaptureKit is gated by Screen & System Audio Recording (`kTCCServiceScreenCapture`), including for streams that only capture audio.
 - `kTCCServiceAudioCapture` ("System Audio Recording Only") is the service used by Core Audio process taps (`AudioHardwareCreateProcessTap`). Shadow does not use process taps.
@@ -30,7 +32,7 @@ For each signing mode, build a throwaway copy and do not use the installed Shado
 2. Sign the copy:
    - Ad-hoc: `codesign --force --deep --sign - /tmp/ShadowAudit.app`
    - Self-signed: create a code-signing certificate in Keychain Access (Certificate Assistant > Create a Certificate > Code Signing), then `codesign --force --deep --sign "<certificate name>" /tmp/ShadowAudit.app`
-3. Reset: `scripts/reset-permissions.sh`, answer `y`.
+3. Reset: `scripts/reset-permissions.sh`, answer `y`. The script resets only Screen Recording and Microphone. Before any process-tap case, also run `tccutil reset AudioCapture com.kalahroudi.shadow` by hand (the `AudioCapture` service name is not yet verified on macOS 26; if `tccutil` rejects it, record that here).
 4. Launch the copy. Trigger exactly one call at a time (a small throwaway harness or a debug build that calls only that API), then open System Settings > Privacy & Security and check each list. Reset between cases.
 5. Record the result as `listed` (Shadow appears, toggle off), `prompt` (macOS shows a prompt), `granted` or `no`.
 
@@ -38,21 +40,27 @@ For each signing mode, build a throwaway copy and do not use the installed Shado
 
 | Call | Screen & System Audio Recording | Microphone | System Audio Recording Only |
 | --- | --- | --- | --- |
+| `CGPreflightScreenCaptureAccess` (status check only, used by `SystemPermissionChecker`) | TBD | TBD | TBD |
 | `CGRequestScreenCaptureAccess` | TBD | TBD | TBD |
 | `SCShareableContent.excludingDesktopWindows` | TBD | TBD | TBD |
 | Starting an audio-only `SCStream` | TBD | TBD | TBD |
 | `AVCaptureDevice.requestAccess(for: .audio)` | TBD | TBD | TBD |
+| Starting `AVAudioEngine` on `inputNode` (used by `MicAudioSource`) | TBD | TBD | TBD |
 | Core Audio process tap | TBD | TBD | TBD |
 
 ## Results: self-signed copy
 
 | Call | Screen & System Audio Recording | Microphone | System Audio Recording Only |
 | --- | --- | --- | --- |
+| `CGPreflightScreenCaptureAccess` (status check only, used by `SystemPermissionChecker`) | TBD | TBD | TBD |
 | `CGRequestScreenCaptureAccess` | TBD | TBD | TBD |
 | `SCShareableContent.excludingDesktopWindows` | TBD | TBD | TBD |
 | Starting an audio-only `SCStream` | TBD | TBD | TBD |
 | `AVCaptureDevice.requestAccess(for: .audio)` | TBD | TBD | TBD |
+| Starting `AVAudioEngine` on `inputNode` (used by `MicAudioSource`) | TBD | TBD | TBD |
 | Core Audio process tap | TBD | TBD | TBD |
+
+All cells are `TBD` = untested. Do not replace a `TBD` with a guess; only with what you observed on a real Mac.
 
 Also note, per signing mode, whether a grant survives a rebuild. Ad-hoc rebuilds change the cdhash, so grants are expected to reset until stable signing (spec 008) lands.
 
