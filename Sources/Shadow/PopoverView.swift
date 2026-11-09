@@ -13,8 +13,13 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             if model.showChecklist { PermissionChecklistView(checker: model.checker) { model.recheckPermissions() } } else { startButton }
-            if let message = model.message {
-                Text(message).font(.system(size: 12)).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true)
+            ForEach(model.notices) { notice in
+                HStack(alignment: .top, spacing: 6) {
+                    Text(notice.text).font(.system(size: 12)).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button { model.dismissNotice(notice.id) } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)) }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss").accessibilityLabel("Dismiss notice")
+                }
             }
             meters
             captions

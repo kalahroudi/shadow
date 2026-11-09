@@ -159,7 +159,7 @@ public actor SessionController {
         let who = speaker == .them ? "Them" : "You"
         let other = speaker == .them ? "You" : "Them"
         let detail = (error as? UserFacingError)?.message ?? "The speech recognizer hit an error."
-        let message = "Speech recognition stopped for \(who): \(detail). Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
+        let message = "\(NoticeText.sentence("Speech recognition stopped for \(who): \(detail)")) Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
         for c in noticeObservers.values { c.yield(message) }
     }
 

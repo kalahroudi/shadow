@@ -169,7 +169,17 @@ final class SessionCoordinatorTests: XCTestCase {
     func testDuplicateNoticesAreNotRepeated() {
         let c = coordinator { nil }
         c.showNotice("A"); c.showNotice("A"); c.showNotice("B")
-        XCTAssertEqual(c.message, "A\nB")
+        XCTAssertEqual(c.message, "A.\nB.")
+        XCTAssertEqual(c.notices.count, 2)
+    }
+
+    func testDismissingOneNoticeKeepsTheOthers() {
+        let c = coordinator { nil }
+        c.showNotice("A"); c.showNotice("B.")
+        c.dismissNotice(c.notices[0].id)
+        XCTAssertEqual(c.notices.map(\.text), ["B."])
+        c.clearNotices()
+        XCTAssertNil(c.message)
     }
 
     func testElapsedFormat() {
