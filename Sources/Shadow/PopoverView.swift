@@ -13,8 +13,13 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             if model.showChecklist { PermissionChecklistView(checker: model.checker) { model.recheckPermissions() } } else { startButton }
-            if let message = model.message {
-                Text(message).font(.system(size: 12)).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true)
+            ForEach(model.notices) { notice in
+                HStack(alignment: .top, spacing: 6) {
+                    Text(notice.text).font(.system(size: 12)).foregroundStyle(Theme.warn).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button { model.dismissNotice(notice.id) } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)) }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss").accessibilityLabel("Dismiss notice")
+                }
             }
             meters
             captions
@@ -41,6 +46,9 @@ struct PopoverView: View {
             .card(padding: 10)
             Divider()
             VStack(spacing: 0) {
+                if Updater.shared.state.showsPopoverRow {
+                    button(icon: "arrow.down.circle", title: "Update available", trailing: Updater.shared.state.availableUpdate?.version) { model.onOpenUpdates?() }
+                }
                 button(icon: "questionmark.circle", title: "Run setup again…", trailing: nil) { OnboardingWindowController.shared.show() }
                 button(icon: "gearshape", title: "Settings…", trailing: "⌘,") { model.onOpenSettings?() }
                 button(icon: "power", title: "Quit Shadow", trailing: "⌘Q") { NSApp.terminate(nil) }

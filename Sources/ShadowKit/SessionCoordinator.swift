@@ -14,8 +14,11 @@ public final class SessionCoordinator {
     public private(set) var levels = Levels()
     /// Live finals and partials. After Stop it keeps the last snapshot until the next Start.
     public private(set) var transcript = TranscriptSnapshot()
-    /// One short friendly message (or several notices, one per line), or nil.
-    public private(set) var message: String?
+    /// Friendly notices, one per line in the popover; identical ones are collapsed and each can be dismissed on its own.
+    public private(set) var notices: [Notice] = []
+    /// The notices joined one per line, or nil when there are none.
+    public var message: String? { noticeCenter.joined }
+    private var noticeCenter = NoticeCenter() { didSet { notices = noticeCenter.notices } }
     /// True while the "fix your permissions" checklist replaces the Start path (R7).
     public private(set) var showChecklist = false
     public private(set) var startedAt: Date?
@@ -49,7 +52,8 @@ public final class SessionCoordinator {
     public func elapsed(at date: Date) -> TimeInterval { startedAt.map { max(0, date.timeIntervalSince($0)) } ?? 0 }
 
     public func recheckPermissions() { showChecklist = !Checklist.items(using: checker).isEmpty }
-    public func dismissMessage() { message = nil }
+    public func dismissNotice(_ id: Notice.ID) { noticeCenter.dismiss(id: id) }
+    public func clearNotices() { noticeCenter.clear() }
 
     /// Start when idle, Stop when running; ignored while a start or stop is already in progress (so a hotkey can't double-fire).
     public func toggle() async {
@@ -65,14 +69,14 @@ public final class SessionCoordinator {
 
     private func start() async {
         phase = .starting   // held through the reminder, so a hotkey during the modal can't start a second session
-        message = nil
+        clearNotices()
         guard Checklist.items(using: checker).isEmpty else {
             showChecklist = true; phase = .idle; onNeedPopover?(); return   // nothing starts without both permissions
         }
         showChecklist = false
         if remindBeforeSession(), !confirmReminder() { phase = .idle; return }
         guard let controller = makeController() else {
-            message = "Capture isn't available in this build yet."; phase = .idle; onNeedPopover?(); return
+            noticeCenter.add(NoticeText.sentence("Capture isn't available in this build yet")); phase = .idle; onNeedPopover?(); return
         }
         // Subscribe before start: notices are not replayed, and the first levels and words must not be missed.
         let notices = await controller.notices()
@@ -89,7 +93,7 @@ public final class SessionCoordinator {
             AppLog.error(error, context: "start session")
             cancelWatchers()
             modelDownload = nil
-            message = UserError.message(for: error, action: "Start the session")
+            noticeCenter.add(NoticeText.sentence(UserError.message(for: error, action: "Start the session")))
             phase = .idle; onNeedPopover?(); return
         }
         self.controller = controller
@@ -104,7 +108,7 @@ public final class SessionCoordinator {
         phase = .stopping
         do { try await controller.stop() } catch {
             AppLog.error(error, context: "stop session")
-            message = UserError.message(for: error, action: "Save the transcript")
+            noticeCenter.add(NoticeText.sentence(UserError.message(for: error, action: "Save the transcript")))
         }
         transcript = await controller.transcript.snapshot   // the flushed final state, whatever the watcher last saw
         cancelWatchers()
@@ -117,10 +121,9 @@ public final class SessionCoordinator {
 
     private func cancelWatchers() { watchers.forEach { $0.cancel() }; watchers = [] }
 
-    /// Adds a friendly line to the message (duplicates are ignored) and asks for the popover so the user sees it.
+    /// Adds a friendly line (duplicates are collapsed) and asks for the popover so the user sees it.
     public func showNotice(_ text: String) {
-        guard message?.contains(text) != true else { return }
-        message = [message, text].compactMap { $0 }.joined(separator: "\n")
+        guard noticeCenter.add(NoticeText.sentence(text)) else { return }
         onNeedPopover?()
     }
 }

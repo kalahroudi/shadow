@@ -22,6 +22,12 @@ public actor SessionController {
     private var stopping = false
     private var tasks: [Task<Void, Never>] = []
     private var levels = Levels()
+    // Audio waiting for a recogniser, per speaker. A restarted analyzer pulls from the same queue, so nothing is dropped across a restart.
+    private var queues: [Speaker: [TimedBuffer]] = [:]
+    private var waiters: [Speaker: (id: UUID, continuation: CheckedContinuation<TimedBuffer?, Never>)] = [:]
+    private var attempts: [Speaker: Int] = [:]
+    private var sourceDone: Set<Speaker> = []
+    private var sttGone: Set<Speaker> = []
     private var observers: [UUID: AsyncStream<Levels>.Continuation] = [:]
     private var noticeObservers: [UUID: AsyncStream<String>.Continuation] = [:]
 
@@ -100,31 +106,92 @@ public actor SessionController {
 
     // MARK: pipeline
 
-    /// Splits one source into a level meter and an STT consumer; returns the two tasks that run until the source ends.
+    /// Most restarts of one speaker's analyzer in a row before the user is told it stopped (R6, R7).
+    static let maxRestarts = 3
+
+    /// Splits one source into a level meter and a supervised STT consumer; returns the two tasks that run until the source ends.
+    /// Buffers wait in a per-speaker queue that each analyzer attempt pulls from, so a restart loses no queued audio.
     private func run(_ buffers: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> [Task<Void, Never>] {
-        let (forSTT, out) = AsyncStream<TimedBuffer>.makeStream()
+        sourceDone.remove(speaker); sttGone.remove(speaker)
+        queues[speaker] = []
         let pump = Task {
-            var sttAlive = true
             for await item in buffers {
                 self.setLevel(LevelMeter.level(of: item.buffer), for: speaker)
-                // Once the recogniser has failed nobody reads `out`; stop feeding it so audio doesn't pile up. The meter keeps going.
-                if sttAlive, case .terminated = out.yield(item) { sttAlive = false }
+                self.deliver(item, to: speaker)
             }
-            out.finish()
+            self.endSource(speaker)
             self.sourceEnded(speaker)
         }
-        let segments = stt.transcribe(forSTT, speaker: speaker, locale: locale)
         let consume = Task {
-            do {
-                for try await segment in segments {
-                    await self.transcript.add(segment)
-                    if segment.isFinal { await self.checkpoint() }
+            var restarts = 0
+            while true {
+                let attempt = self.beginAttempt(speaker)
+                let forSTT = AsyncStream<TimedBuffer>(unfolding: { await self.nextBuffer(for: speaker, attempt: attempt) })
+                do {
+                    for try await segment in self.stt.transcribe(forSTT, speaker: speaker, locale: locale) {
+                        if segment.isFinal { restarts = 0 }   // only a finished segment earns a fresh budget (R8)
+                        await self.transcript.add(segment)
+                        if segment.isFinal { await self.checkpoint() }
+                    }
+                    self.sttStopped(speaker)
+                    return
+                } catch {
+                    guard STTFailure.isRecoverable(error), restarts < Self.maxRestarts, self.session != nil else {
+                        self.sttStopped(speaker)
+                        self.speechFailed(speaker, error, locale: locale)
+                        return
+                    }
+                    restarts += 1
+                    AppLog.speechError(error, context: "restart \(restarts)/\(Self.maxRestarts) transcribe \(speaker.rawValue)", locale: locale)
+                    // The new analyzer never sees the old one's words, and a final would replace this partial, so keep it as a final.
+                    await self.transcript.flushPartial(for: speaker)
                 }
-            } catch {
-                self.speechFailed(speaker, error)
             }
         }
         return [pump, consume]
+    }
+
+    private func deliver(_ item: TimedBuffer, to speaker: Speaker) {
+        guard !sttGone.contains(speaker) else { return }   // nobody will read it; don't let audio pile up
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: item) }
+        else { queues[speaker, default: []].append(item) }
+    }
+
+    private func endSource(_ speaker: Speaker) {
+        sourceDone.insert(speaker)
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: nil) }
+    }
+
+    /// Starts a new analyzer attempt; an older attempt's pending read ends and it can no longer take audio.
+    private func beginAttempt(_ speaker: Speaker) -> Int {
+        let n = (attempts[speaker] ?? 0) + 1
+        attempts[speaker] = n
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: nil) }
+        return n
+    }
+
+    private func sttStopped(_ speaker: Speaker) {
+        sttGone.insert(speaker)
+        queues[speaker] = []
+        if let w = waiters.removeValue(forKey: speaker) { w.continuation.resume(returning: nil) }
+    }
+
+    private func nextBuffer(for speaker: Speaker, attempt: Int) async -> TimedBuffer? {
+        guard attempts[speaker] == attempt, !sttGone.contains(speaker) else { return nil }
+        if !(queues[speaker] ?? []).isEmpty { return queues[speaker]!.removeFirst() }
+        if sourceDone.contains(speaker) { return nil }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (c: CheckedContinuation<TimedBuffer?, Never>) in
+                if Task.isCancelled { c.resume(returning: nil) } else { waiters[speaker] = (id, c) }
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(speaker, id) }
+        }
+    }
+
+    private func cancelWaiter(_ speaker: Speaker, _ id: UUID) {
+        if let w = waiters[speaker], w.id == id { waiters[speaker] = nil; w.continuation.resume(returning: nil) }
     }
 
     /// Saves the finals so far, so an unclean exit can offer them back (R22).
@@ -135,13 +202,13 @@ public actor SessionController {
     }
 
     /// One stream's recogniser died: tell the user, keep the other stream and everything transcribed so far.
-    private func speechFailed(_ speaker: Speaker, _ error: Error) {
-        AppLog.error(error, context: "speech recognition for \(speaker.rawValue)")
+    private func speechFailed(_ speaker: Speaker, _ error: Error, locale: Locale) {
+        AppLog.speechError(error, context: "transcribe \(speaker.rawValue)", locale: locale)
         guard session != nil else { return }
         let who = speaker == .them ? "Them" : "You"
         let other = speaker == .them ? "You" : "Them"
-        let detail = (error as? UserFacingError)?.message
-        let message = "Speech recognition stopped for \(who)\(detail.map { ": \($0)" } ?? ""). Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
+        let detail = (error as? UserFacingError)?.message ?? "The speech recognizer hit an error."
+        let message = "\(NoticeText.sentence("Speech recognition stopped for \(who): \(detail)")) Shadow is still capturing \(other); \(who) won't be transcribed until you start a new session."
         for c in noticeObservers.values { c.yield(message) }
     }
 

@@ -2,9 +2,9 @@
 
 import Foundation
 
-/// The Settings panes (R19). Every case has real content; there is no Updates pane in this milestone.
+/// The Settings panes (R19). Every case has real content.
 public enum SettingsPane: String, CaseIterable, Sendable, Identifiable {
-    case speech, hotkeys, privacy, general
+    case speech, hotkeys, privacy, general, updates
 
     public var id: String { rawValue }
     public var title: String {
@@ -13,6 +13,7 @@ public enum SettingsPane: String, CaseIterable, Sendable, Identifiable {
         case .hotkeys: "Hotkeys"
         case .privacy: "Privacy"
         case .general: "General"
+        case .updates: "Updates"
         }
     }
     public var symbol: String {
@@ -21,6 +22,7 @@ public enum SettingsPane: String, CaseIterable, Sendable, Identifiable {
         case .hotkeys: "command"
         case .privacy: "lock.shield"
         case .general: "gearshape"
+        case .updates: "arrow.down.circle"
         }
     }
 

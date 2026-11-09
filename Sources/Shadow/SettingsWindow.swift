@@ -11,14 +11,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowController()
     private var window: NSWindow?
 
-    func show() {
-        if let window { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
+    func show(pane: SettingsPane? = nil) {
+        if let window {
+            if let pane { window.contentView = NSHostingView(rootView: SettingsView(pane: pane)) }
+            window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return
+        }
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Shadow Settings"
         w.isReleasedWhenClosed = false
         w.delegate = self
-        w.contentView = NSHostingView(rootView: SettingsView())
+        w.contentView = NSHostingView(rootView: SettingsView(pane: pane ?? .speech))
         w.center()
         window = w
         w.makeKeyAndOrderFront(nil)
@@ -60,6 +63,7 @@ struct SettingsView: View {
                         case .hotkeys: HotkeysPane()
                         case .privacy: PrivacyPane()
                         case .general: GeneralPane()
+                        case .updates: UpdatesPane()
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).padding(22)
@@ -73,7 +77,7 @@ struct SettingsView: View {
     }
 }
 
-private struct Row<Content: View>: View {
+struct Row<Content: View>: View {
     let title: String
     var detail: String?
     @ViewBuilder var content: Content
@@ -208,6 +212,10 @@ struct PrivacyPane: View {
                 Divider()
                 Row(title: "Ask before each session", detail: "Show a reminder you confirm before capture begins.") {
                     Toggle("", isOn: $prefs.remindBeforeSession).labelsHidden().toggleStyle(.switch)
+                }
+                Divider()
+                Row(title: "Local-only mode", detail: "Shadow never contacts GitHub, so update checks and downloads are paused.") {
+                    Toggle("", isOn: $prefs.localOnly).labelsHidden().toggleStyle(.switch)
                 }
                 Divider()
                 Row(title: "Audio", detail: PrivacyCopy.noAudioOnDisk) {

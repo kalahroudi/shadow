@@ -236,3 +236,88 @@ final class SessionPipelineTests: XCTestCase {
         try await c.stop()
     }
 }
+
+final class SpeechRestartTests: XCTestCase {
+    private struct Boom: Error {}
+    private let locale = Locale(identifier: "en-US")
+    private func seg(_ s: Speaker, _ t: String, _ start: Double) -> Segment {
+        Segment(speaker: s, text: t, start: start, end: start + 1, locale: "en-US", confidence: 0.9, isFinal: true)
+    }
+    private func store() -> SessionStore { SessionStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("sess-\(UUID().uuidString)")) }
+    private func script(_ n: Int, value: Float = 0.5) -> [(offset: TimeInterval, value: Float)] { (0..<n).map { (Double($0) * 0.05 + 0.05, value) } }
+
+    /// Runs a session until `them` has delivered all its text or the deadline passes, returns the saved record and the notices.
+    private func runSession(stt: FakeSTTProvider, themBuffers: Int = 8, wait: @Sendable () -> Bool) async throws -> (SessionRecord?, [String]) {
+        let c = SessionController(them: FakeAudioSource(script: script(themBuffers), pace: 0.02), you: FakeAudioSource(script: script(3, value: 0.25), pace: 0.02), stt: stt, store: store())
+        let notices = await c.notices()
+        let collected = Task { var out: [String] = []; for await n in notices { out.append(n) }; return out }
+        try await c.start(locale: locale)
+        for _ in 0..<200 where !wait() { try await Task.sleep(nanoseconds: 20_000_000) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let record = try await c.stop()
+        collected.cancel()
+        return (record, await collected.value)
+    }
+
+    func testClassifierTable() {
+        XCTAssertTrue(STTFailure.isRecoverable(NSError(domain: "SFSpeechErrorDomain", code: 17)))
+        XCTAssertTrue(STTFailure.isRecoverable(Boom()))
+        XCTAssertFalse(STTFailure.isRecoverable(UserFacingError("Speech recognition can't read this audio.")))
+        XCTAssertFalse(STTFailure.isRecoverable(CancellationError()))
+        XCTAssertFalse(STTFailure.isRecoverable(NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError)))
+    }
+
+    // N <= 3 failures: recovers, earlier finals kept without duplicates, no notice, audio reaches the new analyzers.
+    func testRecoversFromUpToThreeFailuresSilently() async throws {
+        for n in 1...3 {
+            let words = ["a", "b", "c", "d", "e"].map { seg(.them, $0, 0) }
+            let fails: [(afterSegments: Int, error: Error)?] = Array(repeating: (1, Boom() as Error), count: n)
+            let stt = FakeSTTProvider(scripts: [.them: words], callFailures: [.them: fails])
+            let (record, notices) = try await runSession(stt: stt) { stt.transcribeCalls(.them) > n && stt.buffersReceived(.them) >= 8 }
+            XCTAssertEqual(notices, [], "n=\(n)")
+            XCTAssertEqual(record?.segments.filter { $0.speaker == .them }.map(\.text), ["a", "b", "c", "d", "e"], "n=\(n)")
+            XCTAssertEqual(stt.transcribeCalls(.them), n + 1, "n=\(n)")
+            XCTAssertEqual(stt.buffersReceived(.them), 8, "no buffer lost across \(n) restarts")
+        }
+    }
+
+    // A budget reset after a successful segment: 3 failures, a working stretch, then 3 more failures still recover.
+    func testRetryBudgetResetsAfterASegment() async throws {
+        let words = (0..<8).map { seg(.them, "w\($0)", Double($0)) }
+        let f: (afterSegments: Int, error: Error)? = (1, Boom())
+        let stt = FakeSTTProvider(scripts: [.them: words], callFailures: [.them: [f, f, f, f, f, f]])
+        let (record, notices) = try await runSession(stt: stt, themBuffers: 10) { stt.buffersReceived(.them) >= 10 }
+        XCTAssertEqual(notices, [])
+        XCTAssertEqual(record?.segments.filter { $0.speaker == .them }.map(\.text), (0..<8).map { "w\($0)" })
+    }
+
+    // 4 consecutive failures (3 restarts all failing): exactly one notice, the other stream is unaffected.
+    func testFourthConsecutiveFailureShowsOneNotice() async throws {
+        let f: (afterSegments: Int, error: Error)? = (0, Boom())
+        let stt = FakeSTTProvider(scripts: [.them: [], .you: [seg(.you, "hi", 0)]], callFailures: [.them: [f, f, f, f, f]])
+        let (record, notices) = try await runSession(stt: stt) { stt.transcribeCalls(.them) >= 4 && stt.buffersReceived(.you) >= 1 }
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertTrue(notices.first?.contains("Them") == true)
+        XCTAssertEqual(stt.transcribeCalls(.them), 4)
+        XCTAssertEqual(record?.segments.map(\.text), ["hi"])
+    }
+
+    func testNonRecoverableErrorNoticesWithoutRetry() async throws {
+        let stt = FakeSTTProvider(scripts: [.them: []], callFailures: [.them: [(0, UserFacingError("Unsupported."))]])
+        let (_, notices) = try await runSession(stt: stt) { stt.transcribeCalls(.them) >= 1 }
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(stt.transcribeCalls(.them), 1)
+    }
+
+    // Partial results are not "successful segments": a stream that only ever yields partials runs out of budget,
+    // and each restart keeps the dead stream's partial as a final instead of letting the next result replace it.
+    func testPartialsDoNotResetBudgetAndAreKeptOnRestart() async throws {
+        let partials = (0..<6).map { Segment(speaker: .them, text: "p\($0)", start: Double($0), end: Double($0) + 1, locale: "en-US", confidence: 0.5, isFinal: false) }
+        let f: (afterSegments: Int, error: Error)? = (1, Boom())
+        let stt = FakeSTTProvider(scripts: [.them: partials], callFailures: [.them: [f, f, f, f, f, f]])
+        let (record, notices) = try await runSession(stt: stt, themBuffers: 10) { stt.transcribeCalls(.them) >= 4 }
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(stt.transcribeCalls(.them), 4)
+        XCTAssertEqual(record?.segments.filter { $0.speaker == .them }.map(\.text), ["p0", "p1", "p2", "p3"])
+    }
+}

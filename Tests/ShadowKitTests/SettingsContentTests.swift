@@ -2,9 +2,10 @@ import XCTest
 @testable import ShadowKit
 
 final class SettingsContentTests: XCTestCase {
-    func testPanesAreExactlyTheFourWithContent() {
-        XCTAssertEqual(SettingsPane.allCases.map(\.title), ["Speech", "Hotkeys", "Privacy", "General"])
-        XCTAssertFalse(SettingsPane.allCases.contains { $0.title.lowercased().contains("update") })
+    func testPanesAreExactlyTheFiveWithContent() {
+        XCTAssertEqual(SettingsPane.allCases.map(\.title), ["Speech", "Hotkeys", "Privacy", "General", "Updates"])
+        XCTAssertEqual(SettingsPane.updates.symbol, "arrow.down.circle")
+        XCTAssertEqual(Set(SettingsPane.allCases.map(\.symbol)).count, SettingsPane.allCases.count, "each pane has its own symbol")
     }
 
     func testFooterSaysSettingsSaveAutomatically() {

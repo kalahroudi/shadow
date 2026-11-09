@@ -20,5 +20,14 @@ jobs:
       - name: Bundle (ad-hoc signed) and self-test
         run: |
           scripts/bundle.sh 0.0.0-ci
-          dist/Shadow.app/Contents/MacOS/Shadow --self-test
+          PLIST=dist/Shadow.app/Contents/Info.plist
+          COMMIT="$(/usr/libexec/PlistBuddy -c 'Print :ShadowCommit' "$PLIST")"
+          REPO="$(/usr/libexec/PlistBuddy -c 'Print :ShadowRepo' "$PLIST")"
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          test -n "$COMMIT" && test "$COMMIT" != unknown
+          test -n "$REPO"
+          test "$VERSION" = "0.0.0-ci"
+          OUT="$(dist/Shadow.app/Contents/MacOS/Shadow --self-test)"
+          echo "$OUT"
+          test "$OUT" = "ok $COMMIT"
           dist/Shadow.app/Contents/MacOS/shadow-mcp --version

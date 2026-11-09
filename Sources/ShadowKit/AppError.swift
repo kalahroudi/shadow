@@ -21,6 +21,12 @@ public enum AppLog {
         append("ERROR \(context): \(detail)")
     }
 
+    /// Writes an already-built line (for example from `SpeechLog`) without reflecting the error again.
+    public static func record(error line: String) {
+        logger.error("\(line, privacy: .public)")
+        append("ERROR \(line)")
+    }
+
     public static func info(_ line: String) { logger.info("\(line, privacy: .public)"); append("INFO \(line)") }
 
     private static func append(_ line: String) {
@@ -36,6 +42,7 @@ public enum AppLog {
 public enum UserError {
     public static func message(for error: Error, action: String) -> String {
         if let e = error as? UserFacingError { return e.message }
+        if let e = error as? UpdateError { return e.message }
         if let e = error as? URLError {
             switch e.code {
             case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .timedOut:
