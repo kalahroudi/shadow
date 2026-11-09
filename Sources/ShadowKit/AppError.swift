@@ -22,7 +22,7 @@ public enum AppLog {
     }
 
     /// Writes an already-built line (for example from `SpeechLog`) without reflecting the error again.
-    static func record(error line: String) {
+    public static func record(error line: String) {
         logger.error("\(line, privacy: .public)")
         append("ERROR \(line)")
     }

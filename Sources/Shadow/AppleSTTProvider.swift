@@ -140,8 +140,17 @@ private struct AppleSpeechAssetService: SpeechAssetService {
         await SpeechTranscriber.supportedLocale(equivalentTo: locale)
     }
 
-    func isInstalled(_ locale: Locale) async -> Bool {
-        await SpeechTranscriber.installedLocales.contains { $0.identifier(.bcp47) == locale.identifier(.bcp47) }
+    func supportedLocales() async -> [Locale] { await SpeechTranscriber.supportedLocales }
+
+    func status(for locale: Locale) async -> SpeechAssetStatus {
+        let want = SpeechModelPreparer.normalized(locale)
+        if await SpeechTranscriber.installedLocales.contains(where: { SpeechModelPreparer.normalized($0) == want }) { return .installed }
+        switch await AssetInventory.status(forModules: [AppleSTTProvider.makeTranscriber(locale)]) {
+        case .installed: return .installed
+        case .downloading: return .downloading
+        case .unsupported: return .unsupported
+        default: return .needsDownload
+        }
     }
 
     func download(_ locale: Locale, progress: @escaping @Sendable (Double) -> Void) async throws {
