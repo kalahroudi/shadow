@@ -144,10 +144,9 @@ final class UpdateSwapTests: XCTestCase {
         let reason = "failed under /Users/zed/Library with token=abcd1234secret for user zed"
         try Data(reason.utf8).write(to: paths.updateFailedFile)
         try Data("1.1.0".utf8).write(to: paths.updatePendingFile)
-        let notice = UpdateHandoff.cleanup(paths: paths, currentVersion: "1.0.0", home: "/Users/zed", user: "zed")
-        guard case .rolledBack(let text)? = notice else { return XCTFail("expected rollback, got \(String(describing: notice))") }
-        for leaked in ["/Users/zed", "abcd1234secret", "zed"] { XCTAssertFalse(text.contains(leaked), leaked) }
-        XCTAssertFalse(notice!.text.isEmpty)
+        let notice = try XCTUnwrap(UpdateHandoff.cleanup(paths: paths, currentVersion: "1.0.0", home: "/Users/zed", user: "zed"))
+        XCTAssertEqual(notice, .rolledBack("failed under ~/Library with token=<redacted> for user <user>"))
+        for leaked in ["/Users/zed", "abcd1234secret", "zed"] { XCTAssertFalse(notice.text.contains(leaked), leaked) }
         XCTAssertNil(UpdateHandoff.cleanup(paths: paths, currentVersion: "1.0.0", home: "/Users/zed", user: "zed"))
         XCTAssertFalse(fm.fileExists(atPath: paths.updateFailedFile.path))
     }
