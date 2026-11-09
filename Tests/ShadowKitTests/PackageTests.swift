@@ -3,10 +3,14 @@ import XCTest
 
 /// Guards the scaffold decisions of milestone 1 (R1, R25): they live in files, so the tests read the files.
 final class PackageTests: XCTestCase {
-    private func repoFile(_ path: String) throws -> String {
+    private func repoRoot() -> URL {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { url.deleteLastPathComponent() }   // Tests/ShadowKitTests/<file> -> repo root
-        return try String(contentsOf: url.appendingPathComponent(path), encoding: .utf8)
+        return url
+    }
+
+    private func repoFile(_ path: String) throws -> String {
+        try String(contentsOf: repoRoot().appendingPathComponent(path), encoding: .utf8)
     }
 
     func testPackageDeclaresMacOS26Swift6AndNoDependencies() throws {
@@ -24,6 +28,9 @@ final class PackageTests: XCTestCase {
             XCTAssertTrue(script.contains("<key>\(key)</key>"), key)
         }
         XCTAssertTrue(script.contains("<string>26.0</string>"))
+        for key in ["NSAppleEventsUsageDescription", "NSAccessibilityUsageDescription", "NSInputMonitoringUsageDescription"] {
+            XCTAssertFalse(script.contains(key), "\(key) is not needed")
+        }
     }
 
     func testUsageDescriptionsHaveNonEmptyStrings() throws {
@@ -123,6 +130,39 @@ final class PackageTests: XCTestCase {
         }
     }
 
+    func testBundleScriptSignsWithStableIdentityAndChecksDR() throws {
+        let script = try repoFile("scripts/bundle.sh")
+        XCTAssertEqual(script.components(separatedBy: "com.kalahroudi.shadow").count - 1, 1, "bundle ID is defined once")
+        XCTAssertTrue(script.contains("BUNDLE_ID=\"com.kalahroudi.shadow\""))
+        for needle in ["SIGNING_IDENTITY", "Developer ID Application", "Shadow Signing", "certificate leaf = H",
+                       "certificate leaf[subject.OU]", "--options runtime", "--entitlements scripts/Shadow.entitlements",
+                       "--verify --deep --strict", "codesign -d -r-", "cdhash (not the identity)", "RESET"] {
+            XCTAssertTrue(script.contains(needle), needle)
+        }
+    }
+
+    func testNoOldSigningVariableRemains() throws {
+        for path in ["scripts/bundle.sh", "scripts/make-signing-identity.sh", "scripts/test-signing.sh", "scripts/Shadow.entitlements", "README.md"] {
+            XCTAssertFalse(try repoFile(path).contains("SIGN_IDENTITY"), path)
+        }
+    }
+
+    func testSigningScriptsExistAndAreSafe() throws {
+        let make = try repoFile("scripts/make-signing-identity.sh")
+        for needle in ["already exists", "--export-p12", "chmod 600", "-days 7300", "codeSigning", "-T /usr/bin/codesign"] {
+            XCTAssertTrue(make.contains(needle), needle)
+        }
+        XCTAssertFalse(make.contains(" -A "), "the key must not be open to every app")
+        let test = try repoFile("scripts/test-signing.sh")
+        for needle in ["trap cleanup EXIT", "delete-keychain", "SIGNING_KEYCHAIN", "list-keychains"] {
+            XCTAssertTrue(test.contains(needle), needle)
+        }
+        let fm = FileManager.default
+        for name in ["bundle.sh", "make-signing-identity.sh", "test-signing.sh"] {
+            XCTAssertTrue(fm.isExecutableFile(atPath: repoRoot().appendingPathComponent("scripts/\(name)").path), name)
+        }
+    }
+
     func testNoAgentsOrOldUpdateCodeRemains() throws {
         let fm = FileManager.default
         var root = URL(fileURLWithPath: #filePath)
@@ -183,7 +223,8 @@ final class PackageTests: XCTestCase {
     func testReadmeDocumentsReleaseAndUpdates() throws {
         let readme = try repoFile("README.md")
         for needle in ["## Cutting a release", "## How updates work", "Local-only", "SHA256SUMS", "Shadow.previous.app", "right-click",
-                       "Homebrew cask", "notarization"] {
+                       "Homebrew cask", "notarization", "## Why signing matters / permissions", "make-signing-identity.sh",
+                       "not notarized", "right-click", "untested", "Developer ID", "SIGNING_IDENTITY"] {
             XCTAssertTrue(readme.contains(needle), needle)
         }
         XCTAssertFalse(readme.contains("no release build yet"))
