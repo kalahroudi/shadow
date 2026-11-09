@@ -26,11 +26,28 @@ public enum UpdateState: Equatable, Sendable {
     public var canInstall: Bool { if case .available = self { true } else { false } }
     public var availableUpdate: AvailableUpdate? { if case .available(let u) = self { u } else { nil } }
 
+    /// The popover's "Update available" row shows only while a newer version is known (R15). Gated states are never `.available`.
+    public var showsPopoverRow: Bool { canInstall }
+
     /// Development builds and Local-only mode stop all network use; they win over any other state (R5, R18).
     public static func gate(build: BuildInfo, bundleURL: URL, localOnly: Bool) -> UpdateState? {
         if bundleURL.pathExtension != "app" || build.cleanCommit == nil { return .developmentBuild }
         if localOnly { return .pausedLocalOnly }
         return nil
+    }
+}
+
+/// The launch check's rules (R1). There is no timer: this is asked once at launch.
+public enum UpdateSchedule {
+    public static let interval: TimeInterval = 24 * 3600
+
+    /// True when automatic checks are on, no rate-limit wait is active, and the last success is absent or more than 24 h old.
+    /// A failed check never writes `lastSuccess`, so it does not postpone the next one.
+    public static func launchCheckDue(autoChecks: Bool, lastSuccess: Date?, retryAfter: Date?, now: Date) -> Bool {
+        guard autoChecks else { return false }
+        if let retryAfter, now < retryAfter { return false }
+        guard let lastSuccess else { return true }
+        return now.timeIntervalSince(lastSuccess) > interval
     }
 }
 

@@ -32,6 +32,12 @@ public struct AvailableUpdate: Equatable, Sendable {
     public let notes: String
     public let asset: ReleaseInfo.Asset
     public let checksums: URL?
+
+    /// A fixed newer version for `--snapshot`, so the popover row can be captured.
+    public static let sample = AvailableUpdate(
+        version: "9.9.9", notes: "",
+        asset: .init(name: "Shadow-9.9.9.dmg", url: URL(string: "https://github.com/kalahroudi/shadow/releases/download/v9.9.9/Shadow-9.9.9.dmg")!, size: nil),
+        checksums: nil)
 }
 
 public enum UpdateOutcome: Equatable, Sendable {

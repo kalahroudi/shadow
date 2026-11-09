@@ -18,6 +18,7 @@ final class AppModel {
     var transcript: TranscriptSnapshot { session.transcript }
     var sessionStart: Date? { session.startedAt }
     var onOpenSettings: (@MainActor () -> Void)?
+    var onOpenUpdates: (@MainActor () -> Void)?
 
     var isRunning: Bool { session.isRunning }
     var levels: Levels { session.levels }

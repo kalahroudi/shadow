@@ -29,6 +29,24 @@ final class Updater {
         if state == .developmentBuild || state == .pausedLocalOnly { state = .idle }
     }
 
+    /// Snapshot mode only: shows a sample newer version so the popover row can be captured.
+    func showSample(_ update: AvailableUpdate) { state = .available(update) }
+
+    /// The one silent check at launch: only when due (R1). Same gate, no timer, no repeat.
+    func launchCheckIfDue() async {
+        refreshGate()
+        guard state.canCheck else { return }
+        let due = UpdateSchedule.launchCheckDue(
+            autoChecks: defaults.bool(forKey: PrefsDefaults.autoUpdateChecks),
+            lastSuccess: lastChecked,
+            retryAfter: defaults.object(forKey: PrefsDefaults.lastUpdateRetryAfter) as? Date,
+            now: Date())
+        guard due else { return }
+        await checkNow()
+        // A silent check that fails says nothing at launch; the Updates pane shows the error only on a user action.
+        if case .failed = state { state = .idle }
+    }
+
     /// A user-requested check: ignores the once-a-day limit, not the gate or a rate-limit wait (R2, R6).
     func checkNow() async {
         refreshGate()
