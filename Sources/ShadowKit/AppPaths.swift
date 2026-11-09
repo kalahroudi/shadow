@@ -25,6 +25,8 @@ public struct AppPaths: Sendable {
     public var updateFailedFile: URL { root.appendingPathComponent("update-ok.failed") }
     /// Written before the hand-off; holds the version being installed so the next start can say "Updated to X".
     public var updatePendingFile: URL { root.appendingPathComponent("update-pending") }
+    /// Screen and microphone state recorded before the swap; read and removed once by the new version (R25). Outside `updatesDir`.
+    public var permissionSnapshotFile: URL { root.appendingPathComponent("permission-snapshot.json") }
 
     public func ensureDirectories() throws {
         for dir in [root, sessionsDir] { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }

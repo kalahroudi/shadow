@@ -139,6 +139,7 @@ final class Updater {
                 Task { @MainActor in Updater.shared.permissionsNote = note }
             }, swap: {
                 Task { @MainActor in Updater.shared.state = .relaunching }
+                PermissionLossCheck.record(checker: SystemPermissionChecker(), paths: paths)
                 try UpdateSwap(installedApp: installed, stagedApp: staged, paths: paths).launch(version: update.version)
             })
             if outcome == .cancelled {
