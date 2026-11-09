@@ -28,8 +28,10 @@ final class Prefs {
     /// Popover choices (R17). They take effect immediately. Persona is UI only in milestone 1.
     var persona: Persona { didSet { d.set(persona.rawValue, forKey: "persona") } }
     var language: Language { didSet { d.set(language.rawValue, forKey: "language") } }
-    var overlayVisible: Bool { didSet { d.set(overlayVisible, forKey: "overlayVisible") } }
-    var overlayCompact: Bool { didSet { d.set(overlayCompact, forKey: "overlayCompact") } }
+    var overlayVisible: Bool { didSet { d.set(overlayVisible, forKey: "overlayVisible"); OverlayController.shared.refresh() } }
+    var overlayCompact: Bool { didSet { d.set(overlayCompact, forKey: "overlayCompact"); OverlayController.shared.refresh() } }
+    /// Overlay opacity; the slider applies it to the panel immediately (R13).
+    var overlayOpacity: Double { didSet { d.set(overlayOpacity, forKey: "overlayOpacity"); OverlayController.shared.refresh() } }
 
     /// Global shortcuts, one string per action; invalid or conflicting values fall back to the defaults (R18).
     var hotkeys: HotkeyMap { HotkeyMap.stored { self.d.string(forKey: "hotkey.\($0.rawValue)") } }
@@ -62,6 +64,8 @@ final class Prefs {
         language = Language(rawValue: d.string(forKey: "language") ?? "") ?? .auto
         overlayVisible = d.object(forKey: "overlayVisible") as? Bool ?? true
         overlayCompact = d.object(forKey: "overlayCompact") as? Bool ?? true
+        overlayOpacity = min(OverlayLayout.opacityRange.upperBound, max(OverlayLayout.opacityRange.lowerBound,
+                             d.object(forKey: "overlayOpacity") as? Double ?? OverlayLayout.defaultOpacity))
         theme = ThemeChoice(rawValue: d.string(forKey: "theme") ?? "") ?? .system
         showDockIcon = d.bool(forKey: "showDockIcon")
         // First run: opt in to launch at login. After that the user's choice always wins.

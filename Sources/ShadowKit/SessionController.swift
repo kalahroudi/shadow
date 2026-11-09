@@ -111,7 +111,7 @@ public actor SessionController {
                 if sttAlive, case .terminated = out.yield(item) { sttAlive = false }
             }
             out.finish()
-            await self.sourceEnded(speaker)
+            self.sourceEnded(speaker)
         }
         let segments = stt.transcribe(forSTT, speaker: speaker, locale: locale)
         let consume = Task {
@@ -121,7 +121,7 @@ public actor SessionController {
                     if segment.isFinal { await self.checkpoint() }
                 }
             } catch {
-                await self.speechFailed(speaker, error)
+                self.speechFailed(speaker, error)
             }
         }
         return [pump, consume]

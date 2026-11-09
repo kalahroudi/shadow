@@ -13,7 +13,10 @@ final class AppModel {
     /// Start, Stop, live transcript, meters and elapsed time. The popover and, later, the overlay read it.
     let session: SessionCoordinator
     /// Click-through state; the overlay (a later task) reads it. Hotkey-toggled so it can never be stuck on (R15).
-    private(set) var clickThrough = false
+    var clickThrough = false { didSet { OverlayController.shared.refresh() } }
+    /// Live transcript and start time for the overlay; empty when no session runs.
+    var transcript: TranscriptSnapshot { session.transcript }
+    var sessionStart: Date? { session.startedAt }
     var onOpenSettings: (@MainActor () -> Void)?
 
     var isRunning: Bool { session.isRunning }
