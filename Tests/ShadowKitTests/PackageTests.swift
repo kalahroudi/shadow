@@ -55,6 +55,64 @@ final class PackageTests: XCTestCase {
         XCTAssertEqual(script.components(separatedBy: "com.").count - 1, 1, "only one bundle id appears")
     }
 
+    /// Runs the reset script with a fake `tccutil` first on PATH, so real TCC state is never touched.
+    /// With `tty` the script gets a pseudo-terminal via `script`; `input` is typed after a short delay.
+    private func runReset(tty: Bool, input: String) throws -> (status: Int32, calls: [String]) {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("reset-test-\(UUID().uuidString)")
+        let bin = dir.appendingPathComponent("bin")
+        try fm.createDirectory(at: bin, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let log = dir.appendingPathComponent("calls")
+        let fake = bin.appendingPathComponent("tccutil")
+        try "#!/bin/bash\necho \"$@\" >> '\(log.path)'\n".write(to: fake, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<3 { root.deleteLastPathComponent() }
+        let scriptPath = root.appendingPathComponent("scripts/reset-permissions.sh").path
+
+        let p = Process()
+        if tty {
+            p.executableURL = URL(fileURLWithPath: "/bin/bash")
+            p.arguments = ["-c", "{ sleep 1; printf '\(input)'; sleep 1; } | /usr/bin/script -q /dev/null /bin/bash '\(scriptPath)'"]
+        } else {
+            p.executableURL = URL(fileURLWithPath: "/bin/bash")
+            p.arguments = [scriptPath]
+            p.standardInput = FileHandle.nullDevice
+        }
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = bin.path + ":" + (env["PATH"] ?? "/usr/bin:/bin")
+        p.environment = env
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        try p.run()
+        p.waitUntilExit()
+        let calls = ((try? String(contentsOf: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        return (p.terminationStatus, calls)
+    }
+
+    func testResetScriptRefusesWithoutTerminal() throws {
+        let r = try runReset(tty: false, input: "")
+        XCTAssertNotEqual(r.status, 0)
+        XCTAssertEqual(r.calls, [], "tccutil must not run without a terminal")
+    }
+
+    func testResetScriptRunsOnlyScopedResetsOnYes() throws {
+        let r = try runReset(tty: true, input: "y\\n")
+        XCTAssertEqual(r.status, 0)
+        XCTAssertEqual(r.calls, ["reset ScreenCapture com.kalahroudi.shadow", "reset Microphone com.kalahroudi.shadow"])
+    }
+
+    func testResetScriptDoesNothingOnNoOrEOF() throws {
+        let no = try runReset(tty: true, input: "n\\n")
+        XCTAssertEqual(no.status, 0)
+        XCTAssertEqual(no.calls, [])
+        let eof = try runReset(tty: true, input: "")
+        XCTAssertNotEqual(eof.status, 0)
+        XCTAssertEqual(eof.calls, [])
+    }
+
     func testCIBuildsTestsBundlesAndSelfTests() throws {
         let ci = try repoFile(".github/workflows/ci.yml")
         XCTAssertTrue(ci.contains("runs-on: macos-26"))
