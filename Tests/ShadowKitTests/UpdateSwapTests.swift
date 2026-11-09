@@ -31,7 +31,7 @@ final class UpdateSwapTests: XCTestCase {
     /// Stub `open`: records which app it was asked to open and, if `confirm`, writes the marker like a healthy new app.
     private func writeOpener(confirm: Bool) throws {
         let marker = confirm ? "touch '\(paths.updateOKFile.path)'" : ":"
-        let body = "#!/bin/sh\necho \"$1 $(cat \"$1/Contents/tag\")\" >> '\(openLog.path)'\n\(marker)\n"
+        let body = "#!/bin/sh\nif [ -e '\(paths.updateOKFile.path)' ]; then echo marker-present >> '\(openLog.path)'; fi\necho \"$1 $(cat \"$1/Contents/tag\")\" >> '\(openLog.path)'\n\(marker)\n"
         try Data(body.utf8).write(to: opener)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: opener.path)
     }
@@ -69,6 +69,8 @@ final class UpdateSwapTests: XCTestCase {
         try Data().write(to: paths.updateOKFile)
         // a stale marker must not count as confirmation: the new app never confirms, so we roll back
         XCTAssertEqual(try run(swap()), 1)
+        XCTAssertFalse(opened().contains("marker-present"), "marker was removed before the new app was opened")
+        XCTAssertEqual(opened().count, 2)
         XCTAssertEqual(tag(swap().installedApp), "old")
     }
 
@@ -103,9 +105,14 @@ final class UpdateSwapTests: XCTestCase {
         XCTAssertTrue(log[0].hasSuffix("new")); XCTAssertTrue(log[1].hasSuffix("old"))
     }
 
-    func testRunningProcessIsNeverTheOneReplacingTheBundle() {
-        // the swap runs as a separate /bin/sh, not inside the app
-        XCTAssertEqual(try? swap().makeProcess(pid: 1).executableURL?.path, "/bin/sh")
+    func testSwapRunsAsSeparateShellProcessWithPathsAsArguments() throws {
+        let s = swap()
+        let p = try s.makeProcess(pid: 4242)
+        XCTAssertEqual(p.executableURL?.path, "/bin/sh")
+        XCTAssertFalse(p.isRunning, "makeProcess does not start anything")
+        XCTAssertEqual(p.arguments, [s.scriptURL.path, "4242", s.installedApp.path, s.previousApp.path, s.stagedApp.path,
+                                     paths.updateOKFile.path, paths.updateFailedFile.path, opener.path, "1", "1"])
+        XCTAssertTrue(fm.fileExists(atPath: s.scriptURL.path))
     }
 
     // MARK: confirm step (R12)
