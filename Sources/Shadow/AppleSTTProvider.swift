@@ -2,6 +2,7 @@
 
 import Speech
 @preconcurrency import AVFoundation
+@preconcurrency import AVFAudio
 import ShadowKit
 
 /// On-device speech-to-text with SpeechAnalyzer / SpeechTranscriber: no keys, one analyzer per stream (R10).
@@ -128,12 +129,19 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         let ratio = format.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 16
         guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
-        var supplied = false
+        let input = OneShotInput(buffer)
         var error: NSError?
         let status = converter.convert(to: out, error: &error) { _, inputStatus in
-            if supplied { inputStatus.pointee = .noDataNow; return nil }
-            supplied = true; inputStatus.pointee = .haveData; return buffer
+            if let next = input.take() { inputStatus.pointee = .haveData; return next }
+            inputStatus.pointee = .noDataNow; return nil
         }
         return status == .error || out.frameLength == 0 ? nil : out
     }
+}
+
+/// Hands the converter its one buffer exactly once. The converter calls its input block synchronously on the calling thread.
+private final class OneShotInput: @unchecked Sendable {
+    private var buffer: AVAudioPCMBuffer?
+    init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+    func take() -> AVAudioPCMBuffer? { defer { buffer = nil }; return buffer }
 }
