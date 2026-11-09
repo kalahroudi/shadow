@@ -66,7 +66,7 @@ extension Hotkey {
 }
 
 public enum HotkeyAction: String, CaseIterable, Sendable, Codable {
-    case toggleSession, toggleOverlay, toggleClickThrough, toggleCompact
+    case toggleSession, toggleOverlay, toggleClickThrough, toggleCompact, answerNow
 
     public var label: String {
         switch self {
@@ -74,6 +74,7 @@ public enum HotkeyAction: String, CaseIterable, Sendable, Codable {
         case .toggleOverlay: "Show / hide overlay"
         case .toggleClickThrough: "Toggle click-through"
         case .toggleCompact: "Compact / expand"
+        case .answerNow: "Answer now"
         }
     }
 }
@@ -84,7 +85,8 @@ extension Dictionary where Key == HotkeyAction, Value == Hotkey {
     public static var defaults: HotkeyMap {
         let cs: Hotkey.Modifiers = [.command, .shift]
         return [.toggleSession: Hotkey(keyCode: 49, modifiers: cs), .toggleOverlay: Hotkey(keyCode: 4, modifiers: cs),
-                .toggleClickThrough: Hotkey(keyCode: 17, modifiers: cs), .toggleCompact: Hotkey(keyCode: 14, modifiers: cs)]
+                .toggleClickThrough: Hotkey(keyCode: 17, modifiers: cs), .toggleCompact: Hotkey(keyCode: 14, modifiers: cs),
+                .answerNow: Hotkey(keyCode: 0, modifiers: cs)]
     }
 
     /// Binds `action` to the typed string, or explains in one friendly sentence why it can't.

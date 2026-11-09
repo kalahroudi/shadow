@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.onNeedPopover = { [weak self] in self?.showPopover() }
         HotkeyCenter.shared.onAction = { model.handle($0) }
         model.reportHotkeyConflicts(HotkeyCenter.shared.register(Prefs.shared.hotkeys).keys)
+        model.reportAnswerNowMove()
 
         OverlayController.shared.refresh()
         if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }

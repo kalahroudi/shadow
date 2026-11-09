@@ -28,7 +28,12 @@ final class Prefs {
     /// Check for updates at launch (R1, R14). On by default.
     var autoUpdateChecks: Bool { didSet { d.set(autoUpdateChecks, forKey: PrefsDefaults.autoUpdateChecks) } }
     /// Local-only mode (R18): Shadow never contacts GitHub. Off by default.
-    var localOnly: Bool { didSet { d.set(localOnly, forKey: PrefsDefaults.localOnly); Updater.shared.refreshGate() } }
+    var localOnly: Bool { didSet {
+        d.set(localOnly, forKey: PrefsDefaults.localOnly); Updater.shared.refreshGate()
+        AppModel.shared.answers.localOnlyChanged(to: localOnly)   // reselects a local provider and cancels a cloud answer (R6)
+    } }
+    /// Answer a Them turn that ends in a question automatically (R8). Off by default.
+    var autoSuggest: Bool { didSet { d.set(autoSuggest, forKey: PrefsDefaults.autoSuggest) } }
 
     /// Popover choices (R17). They take effect immediately. The persona list and the active persona live in `PersonaStore` (R14).
     let personas: PersonaStore
@@ -69,6 +74,7 @@ final class Prefs {
         onboardingCompleted = d.bool(forKey: PrefsDefaults.onboardingCompleted)
         autoUpdateChecks = d.bool(forKey: PrefsDefaults.autoUpdateChecks)
         localOnly = d.bool(forKey: PrefsDefaults.localOnly)
+        autoSuggest = d.bool(forKey: PrefsDefaults.autoSuggest)
         personas = PersonaStore(defaults: d)
         micDeviceID = d.string(forKey: PrefsDefaults.micDeviceID) ?? ""
         language = Language(rawValue: d.string(forKey: "language") ?? "") ?? .auto

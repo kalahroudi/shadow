@@ -12,6 +12,8 @@ final class AppModel {
     let checker: PermissionChecker = SystemPermissionChecker()
     /// Start, Stop, live transcript, meters and elapsed time. The popover and, later, the overlay read it.
     let session: SessionCoordinator
+    /// The one in-flight answer, Answer now and auto-suggest (R7, R8, R10). Idle unless a session runs.
+    let answers: AnswerCoordinator
     /// Click-through state; the overlay (a later task) reads it. Hotkey-toggled so it can never be stuck on (R15).
     var clickThrough = false { didSet { OverlayController.shared.refresh() } }
     /// Live transcript and start time for the overlay; empty when no session runs.
@@ -24,7 +26,7 @@ final class AppModel {
     var levels: Levels { session.levels }
     var notices: [Notice] { session.notices }
     var showChecklist: Bool { session.showChecklist }
-    var onRunningChange: (@MainActor (Bool) -> Void)? { get { session.onRunningChange } set { session.onRunningChange = newValue } }
+    @ObservationIgnored var onRunningChange: (@MainActor (Bool) -> Void)?
     var onNeedPopover: (@MainActor () -> Void)? { get { session.onNeedPopover } set { session.onNeedPopover = newValue } }
 
     private init() {
@@ -35,6 +37,26 @@ final class AppModel {
             remindBeforeSession: { Prefs.shared.remindBeforeSession },
             confirmReminder: { AppModel.confirmReminder() },
             locale: { Prefs.shared.language.resolve(supported: Language.allCases.compactMap(\.fixedLocale)) })
+        answers = AnswerCoordinator(
+            settings: LLMSettings(), makeProvider: { AppModel.makeProvider($0) },
+            persona: { Prefs.shared.personas.active }, language: { Prefs.shared.language },
+            turns: { AppModel.shared.session.transcript.finals }, isSessionRunning: { AppModel.shared.session.isRunning },
+            autoSuggest: { Prefs.shared.autoSuggest })
+        let answers = self.answers
+        session.onTranscript = { answers.transcriptChanged($0) }
+        session.onRunningChange = { [weak self] running in
+            if running { answers.sessionStarted() } else { answers.sessionStopped() }   // stopping cancels any in-flight answer (R10)
+            self?.onRunningChange?(running)
+        }
+    }
+
+    private static func makeProvider(_ id: String) -> (any LLMProvider)? {
+        switch id {
+        case OnDeviceProvider.providerID: return OnDeviceProvider(model: FoundationModelsModel())
+        case OpenAICompatProvider.providerID: return OpenAICompatProvider(baseURL: LLMSettings().localBaseURL)
+        case ClaudeCLIProvider.providerID: return ClaudeCLIProvider()
+        default: return CloudKind(rawValue: id).map { CloudProvider(kind: $0, secrets: KeychainStore(), localOnly: { LLMSettings().localOnly }) }
+        }
     }
 
     /// The real pipeline: system audio (Them), microphone (You) and on-device speech, writing to the sessions folder.
@@ -56,6 +78,7 @@ final class AppModel {
         case .toggleOverlay: prefs.overlayVisible.toggle()
         case .toggleClickThrough: clickThrough.toggle()
         case .toggleCompact: prefs.overlayCompact.toggle()
+        case .answerNow: answers.answerNow()
         }
     }
 
@@ -68,6 +91,15 @@ final class AppModel {
     func reportHotkeyConflicts(_ failed: some Collection<HotkeyAction>) {
         guard let text = HotkeyAction.conflictMessage(for: failed) else { return }
         session.showNotice(text)
+    }
+
+    /// Tells the user once per new shortcut when Answer now moved off its default because a saved shortcut owns it.
+    func reportAnswerNowMove() {
+        let d = UserDefaults.standard, key = "answerNowMoveNoticed"
+        guard let move = HotkeyMap.storedResolvingAnswerNow({ d.string(forKey: "hotkey.\($0.rawValue)") }).move,
+              d.string(forKey: key) != move.moved.string else { return }
+        d.set(move.moved.string, forKey: key)
+        session.showNotice(move.message)
     }
 
     /// The reminder before each session (R20). Capture begins only after the user confirms.
