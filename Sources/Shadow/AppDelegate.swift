@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         OverlayController.shared.refresh()
         if !Prefs.shared.onboardingCompleted { OnboardingWindowController.shared.show() }
+        Task { await model.permissions.registerOnLaunch(onboardingCompleted: Prefs.shared.onboardingCompleted) }   // once per launch (R5)
         finishUpdateHandoff(model)
     }
 
