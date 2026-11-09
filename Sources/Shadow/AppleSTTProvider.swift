@@ -12,7 +12,7 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
 
     init(onProgress: @escaping @Sendable (Double?) -> Void = { _ in }) { self.onProgress = onProgress }
 
-    private static func makeTranscriber(_ locale: Locale) -> SpeechTranscriber {
+    fileprivate static func makeTranscriber(_ locale: Locale) -> SpeechTranscriber {
         SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults],
                           attributeOptions: [.audioTimeRange, .transcriptionConfidence])
     }
@@ -21,33 +21,7 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         guard SpeechTranscriber.isAvailable else {
             throw UserFacingError("On-device speech recognition isn't available on this Mac.")
         }
-        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            AppLog.info("unsupported speech locale \(locale.identifier)")
-            throw UserFacingError("Speech recognition doesn't support this language yet. Pick another language.")
-        }
-        let installed = await SpeechTranscriber.installedLocales
-        if installed.contains(where: { $0.identifier(.bcp47) == supported.identifier(.bcp47) }) { return }
-
-        // Both streams share one locale, so one download covers both analyzers.
-        let transcriber = Self.makeTranscriber(supported)
-        do {
-            guard let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) else { return }
-            onProgress(0)
-            let progress = request.progress
-            let watcher = Task {
-                while !Task.isCancelled {
-                    onProgress(progress.fractionCompleted)
-                    try? await Task.sleep(for: .milliseconds(250))
-                }
-            }
-            defer { watcher.cancel(); onProgress(nil) }
-            try await request.downloadAndInstall()
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            AppLog.error(error, context: "download speech assets for \(supported.identifier)")
-            throw UserFacingError("Couldn't download the speech model. Check your internet connection and try again.")
-        }
+        try await SpeechModelPreparer.prepare(locale: locale, service: AppleSpeechAssetService(), onProgress: onProgress)
     }
 
     func transcribe(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale) -> AsyncThrowingStream<Segment, Error> {
@@ -59,7 +33,7 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
                 } catch is CancellationError {
                     continuation.finish()
                 } catch {
-                    AppLog.error(error, context: "transcribe \(speaker.rawValue)")
+                    AppLog.speechError(error, context: "transcribe \(speaker.rawValue)", locale: locale)
                     continuation.finish(throwing: error is UserFacingError ? error : UserFacingError("The speech recognizer hit an error."))
                 }
             }
@@ -158,4 +132,30 @@ private final class OneShotInput: @unchecked Sendable {
     private var buffer: AVAudioPCMBuffer?
     init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
     func take() -> AVAudioPCMBuffer? { defer { buffer = nil }; return buffer }
+}
+
+/// The real asset service: SpeechTranscriber for locale decisions and AssetInventory for the download.
+private struct AppleSpeechAssetService: SpeechAssetService {
+    func supportedLocale(equivalentTo locale: Locale) async -> Locale? {
+        await SpeechTranscriber.supportedLocale(equivalentTo: locale)
+    }
+
+    func isInstalled(_ locale: Locale) async -> Bool {
+        await SpeechTranscriber.installedLocales.contains { $0.identifier(.bcp47) == locale.identifier(.bcp47) }
+    }
+
+    func download(_ locale: Locale, progress: @escaping @Sendable (Double) -> Void) async throws {
+        // Both streams share one locale, so one download covers both analyzers.
+        let transcriber = AppleSTTProvider.makeTranscriber(locale)
+        guard let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) else { return }
+        let fraction = request.progress
+        let watcher = Task {
+            while !Task.isCancelled {
+                progress(fraction.fractionCompleted)
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        defer { watcher.cancel() }
+        try await request.downloadAndInstall()
+    }
 }
