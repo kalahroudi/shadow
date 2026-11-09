@@ -13,12 +13,21 @@ public struct BuildInfo: Equatable, Sendable {
         self.commit = commit; self.repo = repo; self.branch = branch; self.version = version
     }
 
-    /// The running app's build info.
-    public static var current: BuildInfo {
-        let info = Bundle.main.infoDictionary ?? [:]
-        return BuildInfo(commit: info["ShadowCommit"] as? String, repo: info["ShadowRepo"] as? String ?? "kalahroudi/shadow",
-                         branch: info["ShadowBranch"] as? String ?? "main", version: info["CFBundleShortVersionString"] as? String ?? "0.0.0")
+    /// Reads the stamped Info.plist keys; a missing or empty commit means a development build.
+    public init(infoDictionary info: [String: Any]) {
+        let commit = (info["ShadowCommit"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        self.init(commit: commit, repo: info["ShadowRepo"] as? String ?? "kalahroudi/shadow",
+                  branch: info["ShadowBranch"] as? String ?? "main", version: info["CFBundleShortVersionString"] as? String ?? "0.0.0")
     }
+
+    /// What `--self-test` prints: `ok <commit>` (the stamped commit, with any `-dirty`), or `ok dev` with none.
+    public var selfTestLine: String {
+        guard let c = commit, c != "unknown", !c.isEmpty else { return "ok dev" }
+        return "ok \(c)"
+    }
+
+    /// The running app's build info.
+    public static var current: BuildInfo { BuildInfo(infoDictionary: Bundle.main.infoDictionary ?? [:]) }
 
     /// The commit without a "-dirty" marker (the build had uncommitted changes).
     public var cleanCommit: String? {
