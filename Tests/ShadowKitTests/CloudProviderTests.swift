@@ -228,6 +228,27 @@ final class CloudProviderTests: XCTestCase {
         XCTAssertEqual(t.streamRequests.count, 1)
     }
 
+    func testTurningLocalOnlyOnEndsAnInFlightCloudStream() async throws {
+        let flag = LockedFlag()
+        let chunk = Data(Self.ev(#"{"type":"content_block_delta","delta":{"type":"text_delta","text":"a"}}"#).utf8)
+        let t = FakeHTTPTransport(open: [.ok(status: 200, chunks: [chunk, chunk], keepOpen: true)])
+        let p = CloudProvider(kind: .anthropic, transport: t, secrets: try store(.anthropic), localOnly: { flag.value })
+        var got: [String] = [], failure: Error?
+        do {
+            for try await d in p.stream(req) { got.append(d); flag.value = true }   // Local-only turns on after the first piece
+        } catch { failure = error }
+        XCTAssertEqual(got, ["a"])
+        XCTAssertEqual((failure as? UserFacingError)?.message, LocalOnlyPolicy.message)
+    }
+
+    func testKeyWithControlCharactersIsRejectedBeforeAnyRequest() async throws {
+        let t = FakeHTTPTransport(open: [FakeHTTPTransport.sse(Self.anthropicSSE)], data: [.success((Data(), 200))])
+        let p = CloudProvider(kind: .openAI, transport: t, secrets: InMemorySecretStore())
+        do { try await p.testKey("sk-abc\r\nX-Evil: 1"); XCTFail() }
+        catch { XCTAssertEqual((error as? LLMError)?.kind, .badKey) }
+        XCTAssertEqual(t.callCount, 0)
+    }
+
     func testCloudProvidersAreCloudAndLocalOnesAreNot() {
         for kind in CloudKind.allCases {
             XCTAssertTrue(CloudProvider(kind: kind, secrets: InMemorySecretStore()).isCloud)

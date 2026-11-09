@@ -58,6 +58,8 @@ public struct CloudProvider: LLMProvider {
     // MARK: Requests
 
     private func endpoint(model: String, stream: Bool, key: String, timeout: TimeInterval, system: String, user: String, maxTokens: Int) throws -> URLRequest {
+        // A key goes straight into a header, so only printable ASCII is allowed (no CR/LF header injection).
+        guard key.utf8.allSatisfy({ (0x21...0x7E).contains($0) }) else { throw LLMError(.badKey, detail: "key has invalid characters") }
         var r: URLRequest
         let body: [String: Any]
         switch kind {
@@ -126,6 +128,7 @@ public struct CloudProvider: LLMProvider {
         let request = try endpoint(model: model ?? kind.defaultModel, stream: false, key: key, timeout: Self.testTimeout,
                                    system: "Reply with one word.", user: "Say OK.", maxTokens: 16)
         try await LLMStream.withOneRetry {
+            if localOnly() { throw LocalOnlyPolicy.error }
             let result: (data: Data, status: Int)
             do { result = try await transport.data(for: request) } catch { throw Self.mapped(error) }
             if let e = Self.classify(status: result.status, body: result.data) { throw e }
@@ -142,6 +145,7 @@ public struct CloudProvider: LLMProvider {
                                     system: request.system, user: request.user, maxTokens: Self.maxOutputTokens)
             // One retry for a transient failure (offline, 5xx); never for a bad key or other client errors.
             let opened = try await LLMStream.withOneRetry { () -> HTTPStream in
+                if localOnly() { throw LocalOnlyPolicy.error }   // also before the retry
                 let s: HTTPStream
                 do { s = try await transport.stream(for: http) } catch { throw Self.mapped(error) }
                 if s.status >= 300 {
@@ -153,6 +157,8 @@ public struct CloudProvider: LLMProvider {
             }
             var parser = SSEParser()
             func deliver(_ events: [SSEParser.Event]) throws -> Bool {
+                // Turning Local-only on ends an answer that is already streaming.
+                if localOnly() { throw LocalOnlyPolicy.error }
                 for event in events {
                     switch event {
                     case .done: return true
