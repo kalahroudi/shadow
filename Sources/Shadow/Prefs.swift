@@ -30,8 +30,8 @@ final class Prefs {
     /// Local-only mode (R18): Shadow never contacts GitHub. Off by default.
     var localOnly: Bool { didSet { d.set(localOnly, forKey: PrefsDefaults.localOnly); Updater.shared.refreshGate() } }
 
-    /// Popover choices (R17). They take effect immediately. Persona is UI only in milestone 1.
-    var persona: Persona { didSet { d.set(persona.rawValue, forKey: "persona") } }
+    /// Popover choices (R17). They take effect immediately. The persona list and the active persona live in `PersonaStore` (R14).
+    let personas: PersonaStore
     var language: Language { didSet { d.set(language.rawValue, forKey: "language") } }
     var overlayVisible: Bool { didSet { d.set(overlayVisible, forKey: "overlayVisible"); OverlayController.shared.refresh() } }
     var overlayCompact: Bool { didSet { d.set(overlayCompact, forKey: "overlayCompact"); OverlayController.shared.refresh() } }
@@ -69,7 +69,7 @@ final class Prefs {
         onboardingCompleted = d.bool(forKey: PrefsDefaults.onboardingCompleted)
         autoUpdateChecks = d.bool(forKey: PrefsDefaults.autoUpdateChecks)
         localOnly = d.bool(forKey: PrefsDefaults.localOnly)
-        persona = Persona(rawValue: d.string(forKey: "persona") ?? "") ?? .default
+        personas = PersonaStore(defaults: d)
         micDeviceID = d.string(forKey: PrefsDefaults.micDeviceID) ?? ""
         language = Language(rawValue: d.string(forKey: "language") ?? "") ?? .auto
         overlayVisible = d.object(forKey: "overlayVisible") as? Bool ?? true

@@ -13,8 +13,8 @@ final class ShellStateTests: XCTestCase {
     }
 
     func testPersonaDefaultsToInterview() {
-        XCTAssertEqual(Persona.default, .interview)
-        XCTAssertEqual(Persona.allCases.map(\.label), ["Interview", "Sales", "Coding", "Meeting notes"])
+        XCTAssertEqual(Persona.default.id, "interview")
+        XCTAssertEqual(Persona.builtIns.map(\.label), ["Interview", "Sales", "Coding", "Meeting notes"])
     }
 
     func testStoredHotkeysFallBackToDefaults() {

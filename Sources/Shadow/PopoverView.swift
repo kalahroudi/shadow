@@ -25,7 +25,7 @@ struct PopoverView: View {
             captions
             VStack(spacing: 0) {
                 row(icon: "person.circle", title: "Persona") {
-                    Picker("Persona", selection: $prefs.persona) { ForEach(Persona.allCases, id: \.self) { Text($0.label).tag($0) } }
+                    Picker("Persona", selection: Bindable(prefs.personas).selection) { ForEach(prefs.personas.personas) { Text($0.name).tag($0.id) } }
                         .labelsHidden().fixedSize()
                 }
                 row(icon: "globe", title: "Language") {
