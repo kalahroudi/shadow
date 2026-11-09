@@ -239,6 +239,10 @@ struct GeneralPane: View {
                 }
                 if let e = prefs.launchAtLoginError { Text(e).font(.system(size: 12)).foregroundStyle(Theme.danger) }
                 Divider()
+                Row(title: "Auto-suggest on questions", detail: "Answer automatically when the other person finishes asking a question. Off by default; Answer now always works.") {
+                    Toggle("", isOn: $prefs.autoSuggest).labelsHidden().toggleStyle(.switch)
+                }
+                Divider()
                 Row(title: "Show Dock icon", detail: "Off keeps Shadow in the menu bar only.") {
                     Toggle("", isOn: $prefs.showDockIcon).labelsHidden().toggleStyle(.switch)
                 }

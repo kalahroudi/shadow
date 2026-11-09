@@ -67,11 +67,13 @@ public enum PrefsDefaults {
     /// Update checks (R1, R14, R18). Automatic checks are on and Local-only is off by default.
     public static let autoUpdateChecks = "autoUpdateChecks"
     public static let localOnly = "localOnly"
+    /// Answer automatically when a Them turn ends in a question (R8). Off by default.
+    public static let autoSuggest = "autoSuggest"
     /// When the last successful check finished, and the earliest time to try again after GitHub rate-limited us.
     public static let lastUpdateCheck = "lastUpdateCheck"
     public static let lastUpdateRetryAfter = "lastUpdateRetryAfter"
 
     public static func register(in defaults: UserDefaults = .standard) {
-        defaults.register(defaults: [remindBeforeSession: true, onboardingCompleted: false, autoUpdateChecks: true, localOnly: false])
+        defaults.register(defaults: [remindBeforeSession: true, onboardingCompleted: false, autoUpdateChecks: true, localOnly: false, autoSuggest: false])
     }
 }

@@ -27,6 +27,8 @@ public final class SessionCoordinator {
 
     public var onRunningChange: (@MainActor (Bool) -> Void)?
     public var onNeedPopover: (@MainActor () -> Void)?
+    /// Called for every transcript change while a session runs (auto-suggest listens here).
+    public var onTranscript: (@MainActor (TranscriptSnapshot) -> Void)?
 
     private let checker: PermissionChecker
     private let makeController: @MainActor () -> SessionController?
@@ -85,7 +87,7 @@ public final class SessionCoordinator {
         watchers = [
             Task { [weak self] in for await n in notices { if !Task.isCancelled { self?.showNotice(n) } } },
             Task { [weak self] in for await v in levelUpdates { if !Task.isCancelled { self?.levels = v } } },
-            Task { [weak self] in for await t in transcriptUpdates { if !Task.isCancelled { self?.transcript = t } } },
+            Task { [weak self] in for await t in transcriptUpdates { if !Task.isCancelled { self?.transcript = t; self?.onTranscript?(t) } } },
         ]
         do {
             try await controller.start(locale: locale())
