@@ -140,7 +140,7 @@ final class UpdateTransportTests: XCTestCase {
 }
 
 final class UpdateErrorTests: XCTestCase {
-    private let all: [UpdateError.Kind] = [.offline, .rateLimited, .checksumMismatch, .verificationFailed, .badRelease, .notWritable, .noBuild]
+    private let all: [UpdateError.Kind] = [.offline, .rateLimited, .checksumMismatch, .verificationFailed, .badRelease, .notWritable, .noBuild, .identityRefused]
 
     func testEachKindIsOneFriendlySentenceThroughUserError() {
         for k in all {
