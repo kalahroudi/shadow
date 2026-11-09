@@ -196,10 +196,10 @@ final class AnsweringOverlayCoordinatorTests: XCTestCase {
         XCTAssertTrue(c.canGoBack); XCTAssertFalse(c.canGoForward)
         c.goBack()
         XCTAssertEqual(c.history.position, "1 / 2")
-        XCTAssertFalse(c.canFollowUp)
+        XCTAssertFalse(c.canFollowUp); XCTAssertFalse(c.canRegenerate)   // both act on the newest request
         XCTAssertTrue(c.canGoForward); XCTAssertFalse(c.canGoBack)
         c.goForward()
-        XCTAssertTrue(c.canFollowUp)
+        XCTAssertTrue(c.canFollowUp); XCTAssertTrue(c.canRegenerate)
         c.goBack(); c.reissue(); await done(c)   // new answer after navigating appends at the end
         XCTAssertEqual(c.history.records.count, 3)
         XCTAssertEqual(c.history.position, "3 / 3")

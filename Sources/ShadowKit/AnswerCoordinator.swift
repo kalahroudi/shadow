@@ -162,6 +162,9 @@ public final class AnswerCoordinator {
         return false
     }
 
+    /// Regenerate re-issues the newest request, so it is offered only while the newest answer is on screen.
+    public var canRegenerate: Bool { !isStreaming && last != nil && history.atLatest }
+
     public var canGoBack: Bool { !isStreaming && history.canBack }
     public var canGoForward: Bool { !isStreaming && history.canForward }
 

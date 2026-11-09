@@ -20,6 +20,7 @@ struct OverlayContent {
     var answer: AnswerState = .idle
     var showsCloudBadge = false
     var canFollowUp = false
+    var canRegenerate = false
     var canGoBack = false
     var canGoForward = false
     var historyPosition: String?
@@ -61,7 +62,7 @@ struct LiveOverlayView: View {
                 persona: prefs.personas.active.name, sessionStart: model.sessionStart,
                 startHotkey: prefs.hotkeys[.toggleSession]?.display ?? "",
                 clickThroughHotkey: prefs.hotkeys[.toggleClickThrough]?.display ?? "",
-                answer: answers.state, showsCloudBadge: answers.showsCloudBadge, canFollowUp: answers.canFollowUp,
+                answer: answers.state, showsCloudBadge: answers.showsCloudBadge, canFollowUp: answers.canFollowUp, canRegenerate: answers.canRegenerate,
                 canGoBack: answers.canGoBack, canGoForward: answers.canGoForward, historyPosition: answers.history.position,
                 answerHotkey: prefs.hotkeys[.answerNow]?.display ?? "", copyHotkey: prefs.hotkeys[.copyAnswer]?.display ?? "",
                 switchPersonaName: switchTo),
@@ -302,7 +303,7 @@ struct AnswerBody: View {
             Spacer(minLength: 4)
             if a.isStreaming {
                 pill("Stop", "stop.fill", actions.stop)
-            } else {
+            } else if content.canRegenerate {
                 pill("Regenerate", "arrow.clockwise", actions.regenerate)
             }
             pill("Copy", "doc.on.doc", actions.copyAnswer, hint: content.copyHotkey).disabled(a.text.isEmpty)
