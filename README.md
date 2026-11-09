@@ -23,7 +23,7 @@ Never call a destructive tool without asking me first.
 
 ## Features
 
-- **Two separate streams.** Them is system audio (ScreenCaptureKit, excluding Shadow's own sounds). You is your microphone.
+- **Two separate streams.** Them is system audio (ScreenCaptureKit, excluding Shadow's own sounds). You is your microphone. Pick the microphone in Settings > Speech (it takes effect on the next Start). Capturing a single app or window for Them is a planned follow-up; for now Them is whole system audio.
 - **On-device speech-to-text.** Apple SpeechAnalyzer, no keys, no account, no cloud.
 - **Live floating overlay.** Frosted glass, follows you across Spaces, never steals focus. Compact and Expanded, adjustable opacity, per-display position, optional click-through with a hotkey that always turns it off.
 - **Menu bar popover.** Start/Stop, level meters, persona and language pickers, overlay switch.
