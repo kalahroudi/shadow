@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shadow: live on-device transcript for calls</title>
+<meta name="description" content="A free, open-source macOS menu bar app that shows what they say and what you say, live, transcribed on your Mac.">
+<style>
+  :root { color-scheme: light dark; --bg:#f5f5f7; --fg:#1d1d1f; --mute:#6e6e73; --card:#fff; --line:rgba(0,0,0,.08); --accent:#6a4cf0; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1f; --fg:#f5f5f7; --mute:#a1a1a6; --card:#26272b; --line:rgba(255,255,255,.1); --accent:#8f78ff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width: 860px; margin: 0 auto; padding: 56px 22px 64px; }
+  header { text-align:center; }
+  header img.icon { width:112px; height:112px; }
+  h1 { font-size: 44px; margin: 12px 0 6px; letter-spacing: -.02em; }
+  .lead { color:var(--mute); font-size:19px; max-width:560px; margin:0 auto 22px; }
+  .shot { display:block; width:100%; max-width:620px; margin:28px auto; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.18); }
+  a.btn { display:inline-block; background:var(--accent); color:#fff; padding:10px 20px; border-radius:10px; text-decoration:none; font-weight:600; }
+  h2 { margin-top: 44px; font-size: 24px; }
+  ul { padding-left: 20px; } li { margin: 8px 0; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  code { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:14px; }
+  footer { margin-top:48px; color:var(--mute); font-size:14px; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img class="icon" src="assets/icon.png" alt="Shadow app icon">
+    <h1>Shadow</h1>
+    <p class="lead">See what they say and what you say, live. Transcribed on your Mac, shown in a floating overlay. Free and open source.</p>
+    <a class="btn" href="https://github.com/kalahroudi/shadow">View on GitHub</a>
+  </header>
+
+  <img class="shot" src="assets/overlay.png" alt="Shadow's overlay with a live Them and You transcript (sample text)">
+
+  <h2>What it does</h2>
+  <div class="grid">
+    <div class="card"><strong>Two streams</strong><br>System audio is Them. Your microphone is You.</div>
+    <div class="card"><strong>On-device</strong><br>Apple SpeechAnalyzer. No keys, accounts or cloud.</div>
+    <div class="card"><strong>Visible by design</strong><br>No stealth mode. A reminder before each session.</div>
+    <div class="card"><strong>Private</strong><br>Audio is never written to disk. Only text is saved.</div>
+  </div>
+
+  <h2>Hotkeys</h2>
+  <ul>
+    <li><code>⌘⇧Space</code> start or stop a session</li>
+    <li><code>⌘⇧H</code> show or hide the overlay</li>
+    <li><code>⌘⇧T</code> toggle click-through</li>
+    <li><code>⌘⇧E</code> compact or expand</li>
+  </ul>
+
+  <h2>Install</h2>
+  <p>Requires macOS 26 or later. There is no release build yet, so build from source:</p>
+  <p><code>git clone https://github.com/kalahroudi/shadow.git &amp;&amp; cd shadow &amp;&amp; scripts/bundle.sh</code></p>
+  <p>The README has a prompt you can paste into an AI coding agent to do this for you.</p>
+
+  <h2>Roadmap</h2>
+  <ul>
+    <li>LLM answers</li>
+    <li>Screenshots and OCR</li>
+    <li>RAG over your files</li>
+    <li>History</li>
+    <li>Sparkle updates</li>
+    <li>Notarization, DMG and Homebrew cask</li>
+  </ul>
+
+  <footer>Apache-2.0 · Screenshots use sample text only.</footer>
+</main>
+</body>
+</html>

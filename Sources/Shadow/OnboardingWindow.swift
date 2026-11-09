@@ -137,7 +137,7 @@ struct OnboardingView: View {
     private var consent: some View {
         VStack(alignment: .leading) {
             title("One more thing", "Before your first session.")
-            Text("**Consent & rules.** Recording or transcribing other people may require their consent, and some employers or interview platforms ban assistive tools. Shadow is visible by default (menu bar indicator and on-screen overlay). You decide when it is appropriate.")
+            Text("**Consent & rules.** " + PrivacyCopy.consentNote)
                 .lineSpacing(3).card()
             VStack(spacing: 0) {
                 Toggle("Remind me before each session", isOn: $prefs.remindBeforeSession).padding(.vertical, 6)

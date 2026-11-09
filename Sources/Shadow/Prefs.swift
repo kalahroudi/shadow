@@ -33,6 +33,9 @@ final class Prefs {
     /// Overlay opacity; the slider applies it to the panel immediately (R13).
     var overlayOpacity: Double { didSet { d.set(overlayOpacity, forKey: "overlayOpacity"); OverlayController.shared.refresh() } }
 
+    /// Unique ID of the microphone for the You stream; empty means the system default (R19).
+    var micDeviceID: String { didSet { d.set(micDeviceID, forKey: PrefsDefaults.micDeviceID) } }
+
     /// Global shortcuts, one string per action; invalid or conflicting values fall back to the defaults (R18).
     var hotkeys: HotkeyMap { HotkeyMap.stored { self.d.string(forKey: "hotkey.\($0.rawValue)") } }
     /// Rebinds without a relaunch. If macOS refuses any shortcut nothing is saved, the previous shortcuts stay live
@@ -46,11 +49,10 @@ final class Prefs {
         return [:]
     }
 
-    /// The microphone for the You stream: the Core Audio device UID stored under "micDeviceID" (the key #8's Settings picker writes),
+    /// The microphone for the You stream: the Core Audio device UID stored under `PrefsDefaults.micDeviceID` (the key the Settings picker writes),
     /// or nil for the system default (an empty or missing value). Read when a session starts.
     nonisolated static func micDeviceUIDForStart() -> String? {
-        let uid = UserDefaults.standard.string(forKey: "micDeviceID")
-        return uid?.isEmpty == false ? uid : nil
+        PrefsDefaults.micDeviceUID()
     }
 
     private(set) var launchAtLogin: Bool = false
@@ -61,6 +63,7 @@ final class Prefs {
         remindBeforeSession = d.bool(forKey: PrefsDefaults.remindBeforeSession)
         onboardingCompleted = d.bool(forKey: PrefsDefaults.onboardingCompleted)
         persona = Persona(rawValue: d.string(forKey: "persona") ?? "") ?? .default
+        micDeviceID = d.string(forKey: PrefsDefaults.micDeviceID) ?? ""
         language = Language(rawValue: d.string(forKey: "language") ?? "") ?? .auto
         overlayVisible = d.object(forKey: "overlayVisible") as? Bool ?? true
         overlayCompact = d.object(forKey: "overlayCompact") as? Bool ?? true
