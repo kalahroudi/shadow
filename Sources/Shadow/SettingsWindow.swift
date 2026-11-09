@@ -106,6 +106,10 @@ struct SpeechPane: View {
                     Picker("Microphone", selection: $prefs.micDeviceID) {
                         Text("System default").tag("")
                         ForEach(devices, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
+                        // A stored mic that is unplugged stays selectable-looking; capture falls back to the default input.
+                        if !prefs.micDeviceID.isEmpty, !devices.contains(where: { $0.uniqueID == prefs.micDeviceID }) {
+                            Text("Unavailable (using system default)").tag(prefs.micDeviceID)
+                        }
                     }.labelsHidden().frame(width: 220)
                 }
                 Divider()

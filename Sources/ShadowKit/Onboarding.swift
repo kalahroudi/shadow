@@ -54,6 +54,13 @@ public struct OnboardingModel: Equatable, Sendable {
 public enum PrefsDefaults {
     public static let remindBeforeSession = "remindBeforeSession"
     public static let onboardingCompleted = "onboardingCompleted"
+    /// The one key the Settings mic picker writes and the capture path reads.
+    public static let micDeviceID = "micDeviceID"
+    /// The stored microphone UID, or nil (system default) when it is missing or empty.
+    public static func micDeviceUID(in defaults: UserDefaults = .standard) -> String? {
+        let uid = defaults.string(forKey: micDeviceID)
+        return uid?.isEmpty == false ? uid : nil
+    }
     /// Visible mode is a fixed rule, not a setting: there is no way to hide the overlay from capture (R20).
     public static let visibleMode = true
 

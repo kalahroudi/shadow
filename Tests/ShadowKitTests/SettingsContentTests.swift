@@ -22,4 +22,13 @@ final class SettingsContentTests: XCTestCase {
         let odd = Hotkey(keyCode: 200, modifiers: [.command])
         if case .success = HotkeyMap.defaults.binding(.toggleOverlay, to: odd.string) { XCTFail("accepted unknown key") }
     }
+
+    func testMicDeviceUIDReadsTheKeyTheSettingsPickerWrites() {
+        let d = UserDefaults(suiteName: "mic-test-\(UUID().uuidString)")!
+        XCTAssertNil(PrefsDefaults.micDeviceUID(in: d))
+        d.set("", forKey: PrefsDefaults.micDeviceID)
+        XCTAssertNil(PrefsDefaults.micDeviceUID(in: d))
+        d.set("AppleUSBAudio:1234", forKey: PrefsDefaults.micDeviceID)
+        XCTAssertEqual(PrefsDefaults.micDeviceUID(in: d), "AppleUSBAudio:1234")
+    }
 }
