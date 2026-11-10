@@ -48,14 +48,15 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         var value: Error? { lock.withLock { error } }
     }
 
-    /// The feed loop writes the clock and the results task reads it, so guard it with a lock.
+    /// Maps analyzer time (which starts at 0 with the first buffer) back to session time.
+    /// The analyzer is fed with NO explicit bufferStartTime: passing one makes SpeechAnalyzer fail with
+    /// SFSpeechErrorDomain Code=17 ("Audio input timestamp overlaps or precedes prior audio input") even when the
+    /// times are strictly sequential (reproduced outside the app). Without it the buffers are treated as contiguous.
     private final class ClockBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var clock = AnalyzerClock()
-        func start(sessionTime: TimeInterval, frames: Int, sampleRate: Double) -> TimeInterval {
-            lock.withLock { clock.start(sessionTime: sessionTime, frames: frames, sampleRate: sampleRate) }
-        }
-        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { clock.sessionTime(forAnalyzerTime: t) } }
+        private var origin: TimeInterval?
+        func note(sessionTime: TimeInterval) { lock.withLock { if origin == nil, sessionTime.isFinite { origin = sessionTime } } }
+        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { (origin ?? 0) + t } }
     }
 
     private static func run(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale,
@@ -101,8 +102,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         for await item in source {
             if failure.value != nil { break }
             guard let buffer = convert(item.buffer, to: target, using: &converter), buffer.frameLength > 0 else { continue }
-            let start = clock.start(sessionTime: item.time, frames: Int(buffer.frameLength), sampleRate: buffer.format.sampleRate)
-            inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: start, preferredTimescale: CMTimeScale(AnalyzerClock.timescale))))
+            clock.note(sessionTime: item.time)
+            inputContinuation.yield(AnalyzerInput(buffer: buffer))
         }
         inputContinuation.finish()
         if failure.value == nil { try await analyzer.finalizeAndFinishThroughEndOfInput() }
