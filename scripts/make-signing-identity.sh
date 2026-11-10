@@ -88,6 +88,9 @@ SHA="$(run_t 30 "$OPENSSL" x509 -in "$WORK/cert.pem" -noout -fingerprint -sha1 |
 cp /usr/bin/true "$WORK/t"   # no compiler needed
 if ! PROBE="$(run_t 60 codesign --force --keychain "$KEYCHAIN" --sign "$SHA" "$WORK/t" 2>&1)"; then
   echo "$PROBE" >&2
+  { echo "--- diagnostics ($(sw_vers -productVersion 2>/dev/null))"; run_t 30 security find-identity -p codesigning "$KEYCHAIN" 2>&1
+    echo "valid only:"; run_t 30 security find-identity -v -p codesigning "$KEYCHAIN" 2>&1
+    echo "keychains:"; run_t 30 security list-keychains -d user 2>&1; echo "---"; } >&2 || true
   echo "codesign did not accept the new identity; marking it trusted for code signing (current user only)..."
   # add-trusted-cert raises a GUI authorization dialog: never in CI or without a terminal, where nobody can answer it.
   if [ -n "${CI:-}" ] || [ ! -t 0 ]; then
