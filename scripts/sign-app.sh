@@ -3,6 +3,7 @@
 # Usage: scripts/sign-app.sh <path/to/Shadow.app>   (called by scripts/bundle.sh; env: see bundle.sh)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/lib-timeout.sh
 APP="${1:?usage: sign-app.sh <Shadow.app>}"
 BUNDLE_ID="com.kalahroudi.shadow"
 
@@ -17,7 +18,7 @@ KC_ARGS=()
 find_identity() {
   local valid=()
   [ "$2" = prefix ] && valid=(-v)   # auto-detected Developer ID identities must be valid (not expired)
-  security find-identity ${valid[@]+"${valid[@]}"} -p codesigning ${KC_ARGS[@]+"${KC_ARGS[@]}"} 2>/dev/null |
+  run_t 30 security find-identity ${valid[@]+"${valid[@]}"} -p codesigning ${KC_ARGS[@]+"${KC_ARGS[@]}"} 2>/dev/null |
     sed -n 's/^ *[0-9]*) \([0-9A-Fa-f]\{40\}\) "\(.*\)".*$/\1 \2/p' |
     awk -v want="$1" -v mode="$2" '
       { name = substr($0, 42) }
@@ -27,7 +28,7 @@ find_identity() {
 
 # Prints the team ID (subject OU) of the certificate named $1; empty if there is none.
 team_id_of() {
-  security find-certificate -c "$1" -p ${KC_ARGS[@]+"${KC_ARGS[@]}"} 2>/dev/null |
+  run_t 30 security find-certificate -c "$1" -p ${KC_ARGS[@]+"${KC_ARGS[@]}"} 2>/dev/null |
     /usr/bin/openssl x509 -noout -subject 2>/dev/null |
     tr ',/' '\n\n' | sed -n 's/^ *OU *= *\([A-Z0-9]\{10\}\) *$/\1/p' | head -1
 }
@@ -90,9 +91,9 @@ case "$KIND" in
     ;;
 esac
 
-codesign "${SIGN_FLAGS[@]}" "$APP/Contents/MacOS/shadow-mcp"
-codesign "${SIGN_FLAGS[@]}" ${APP_ENTITLEMENTS[@]+"${APP_ENTITLEMENTS[@]}"} "$APP"
-codesign --verify --deep --strict "$APP"
+run_t 120 codesign "${SIGN_FLAGS[@]}" "$APP/Contents/MacOS/shadow-mcp"
+run_t 120 codesign "${SIGN_FLAGS[@]}" ${APP_ENTITLEMENTS[@]+"${APP_ENTITLEMENTS[@]}"} "$APP"
+run_t 60 codesign --verify --deep --strict "$APP"
 
 # Check the DR that was actually written.
 ACTUAL_DR="$(codesign -d -r- "$APP" 2>/dev/null | sed -n 's/^designated => /designated => /p')"

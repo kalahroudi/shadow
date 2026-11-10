@@ -285,6 +285,14 @@ final class PackageTests: XCTestCase {
         XCTAssertTrue(try repoFile(".github/workflows/release.yml").contains("timeout-minutes:"))
         XCTAssertTrue(try repoFile("scripts/test-signing.sh").contains("SIGNING_KEYCHAIN_PASSWORD"), "headless keychain needs the partition list before codesign")
         XCTAssertTrue(try repoFile("scripts/make-signing-identity.sh").contains("SIGNING_KEYCHAIN_PASSWORD"))
+        XCTAssertTrue(ci.contains("timeout-minutes: 20") && ci.contains("timeout-minutes: 10"))
+        // Every keychain/codesign call in the signing scripts goes through the timeout helper; add-trusted-cert never runs in CI.
+        for path in ["scripts/test-signing.sh", "scripts/make-signing-identity.sh", "scripts/sign-app.sh"] {
+            XCTAssertTrue(try repoFile(path).contains("lib-timeout.sh"), path)
+        }
+        let make = try repoFile("scripts/make-signing-identity.sh")
+        XCTAssertTrue(make.contains("[ -n \"${CI:-}\" ]"), "add-trusted-cert must be refused in CI")
+        XCTAssertTrue(try repoFile("scripts/test-signing.sh").contains("SKIPPED: no usable keychain"))
     }
 
     func testCheckSigningScript() throws {

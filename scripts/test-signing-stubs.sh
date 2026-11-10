@@ -109,5 +109,13 @@ run "none" "$SS_HASH" "$TMP/with-ou.pem" "$R8" env STUB_NAME=nothing-usable
 expect_ok "ad-hoc fallback"
 case "$OUT" in *"WARNING: no stable signing identity"*"RESET"*) ;; *) fail "fallback warning missing: $OUT" ;; esac
 
+# run_t must turn a hang (for example an unanswerable keychain prompt) into a loud failure naming the command.
+. scripts/lib-timeout.sh
+RC=0; OUT="$(run_t 1 sleep 30 2>&1)" || RC=$?
+[ "$RC" = 124 ] || fail "run_t did not time out a hung command (rc=$RC)"
+case "$OUT" in *"TIMEOUT after 1s: sleep"*) ;; *) fail "run_t timeout message missing: $OUT" ;; esac
+RC=0; run_t 5 sh -c 'exit 3' || RC=$?
+[ "$RC" = 3 ] || fail "run_t changed the exit status (rc=$RC)"
+
 if [ "$FAILED" -ne 0 ]; then exit 1; fi
 echo "test-signing-stubs: ok"
