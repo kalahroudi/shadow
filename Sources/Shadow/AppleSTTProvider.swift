@@ -48,15 +48,12 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         var value: Error? { lock.withLock { error } }
     }
 
-    /// Maps analyzer time (which starts at 0 with the first buffer) back to session time.
-    /// The analyzer is fed with NO explicit bufferStartTime: passing one makes SpeechAnalyzer fail with
-    /// SFSpeechErrorDomain Code=17 ("Audio input timestamp overlaps or precedes prior audio input") even when the
-    /// times are strictly sequential (reproduced outside the app). Without it the buffers are treated as contiguous.
+    /// The feed loop writes the map and the results task reads it, so guard it with a lock.
     private final class ClockBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var origin: TimeInterval?
-        func note(sessionTime: TimeInterval) { lock.withLock { if origin == nil, sessionTime.isFinite { origin = sessionTime } } }
-        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { (origin ?? 0) + t } }
+        private var map = SessionTimeMap()
+        func note(sessionTime: TimeInterval, duration: TimeInterval) { lock.withLock { map.append(sessionTime: sessionTime, duration: duration) } }
+        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { map.sessionTime(forAnalyzerTime: t) } }
     }
 
     private static func run(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale,
@@ -102,7 +99,7 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         for await item in source {
             if failure.value != nil { break }
             guard let buffer = convert(item.buffer, to: target, using: &converter), buffer.frameLength > 0 else { continue }
-            clock.note(sessionTime: item.time)
+            clock.note(sessionTime: item.time, duration: Double(buffer.frameLength) / buffer.format.sampleRate)
             inputContinuation.yield(AnalyzerInput(buffer: buffer))
         }
         inputContinuation.finish()
