@@ -11,6 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Build
@@ -36,4 +37,5 @@ jobs:
       - name: Check designated requirement (ad-hoc fallback)
         run: scripts/check-signing.sh --adhoc-fallback dist/Shadow.app
       - name: Signing shell test (throwaway keychain)
+        timeout-minutes: 10
         run: scripts/test-signing.sh

@@ -15,6 +15,7 @@ permissions:
 jobs:
   release:
     runs-on: macos-26
+    timeout-minutes: 60
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
       GH_TOKEN: ${{ github.token }}

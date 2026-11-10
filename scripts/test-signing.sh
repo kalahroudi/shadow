@@ -26,7 +26,7 @@ cdhash_of() { codesign -dvvv "$1" 2>&1 | sed -n 's/^CDHash=//p'; }
 security create-keychain -p "$KC_PW" "$KC"
 security set-keychain-settings "$KC"
 security unlock-keychain -p "$KC_PW" "$KC"
-SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh
+SIGNING_KEYCHAIN="$KC" SIGNING_KEYCHAIN_PASSWORD="$KC_PW" scripts/make-signing-identity.sh
 # Idempotent: a second run creates nothing, and asking it to export a key it no longer has is an error.
 SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh >/dev/null || fail "second make-signing-identity run failed"
 [ "$(security find-certificate -a -c "Shadow Signing" "$KC" | grep -c '"labl"')" = 1 ] || fail "Shadow Signing was duplicated"

@@ -281,6 +281,10 @@ final class PackageTests: XCTestCase {
         let ci = try repoFile(".github/workflows/ci.yml")
         XCTAssertTrue(ci.contains("check-signing.sh --adhoc-fallback"))
         XCTAssertTrue(ci.contains("scripts/test-signing.sh"))
+        XCTAssertTrue(ci.contains("timeout-minutes:"), "a hung keychain prompt must fail CI, not run for hours")
+        XCTAssertTrue(try repoFile(".github/workflows/release.yml").contains("timeout-minutes:"))
+        XCTAssertTrue(try repoFile("scripts/test-signing.sh").contains("SIGNING_KEYCHAIN_PASSWORD"), "headless keychain needs the partition list before codesign")
+        XCTAssertTrue(try repoFile("scripts/make-signing-identity.sh").contains("SIGNING_KEYCHAIN_PASSWORD"))
     }
 
     func testCheckSigningScript() throws {

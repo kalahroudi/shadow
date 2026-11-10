@@ -76,6 +76,11 @@ PW_ENV="$IMPORT_PW" "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/
   -out "$WORK/import.p12" -passout env:PW_ENV
 # -T limits access to codesign; no -A, so other apps cannot use the key.
 security import "$WORK/import.p12" -k "$KEYCHAIN" -P "$IMPORT_PW" -T /usr/bin/codesign >/dev/null
+# With the keychain password (SIGNING_KEYCHAIN_PASSWORD, for throwaway/CI keychains) allow codesign to use the key
+# without a GUI prompt, which would hang a headless runner.
+if [ -n "${SIGNING_KEYCHAIN_PASSWORD:-}" ]; then
+  security set-key-partition-list -S apple-tool:,apple: -s -k "$SIGNING_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+fi
 
 # Trust is only needed if codesign refuses the identity. Test with a throwaway binary.
 SHA="$("$OPENSSL" x509 -in "$WORK/cert.pem" -noout -fingerprint -sha1 | sed 's/.*=//;s/://g' | tr 'A-F' 'a-f')"
