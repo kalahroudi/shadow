@@ -48,14 +48,12 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         var value: Error? { lock.withLock { error } }
     }
 
-    /// The feed loop writes the clock and the results task reads it, so guard it with a lock.
+    /// The feed loop writes the map and the results task reads it, so guard it with a lock.
     private final class ClockBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var clock = AnalyzerClock()
-        func start(sessionTime: TimeInterval, frames: Int, sampleRate: Double) -> TimeInterval {
-            lock.withLock { clock.start(sessionTime: sessionTime, frames: frames, sampleRate: sampleRate) }
-        }
-        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { clock.sessionTime(forAnalyzerTime: t) } }
+        private var map = SessionTimeMap()
+        func note(sessionTime: TimeInterval, duration: TimeInterval) { lock.withLock { map.append(sessionTime: sessionTime, duration: duration) } }
+        func sessionTime(forAnalyzerTime t: TimeInterval) -> TimeInterval { lock.withLock { map.sessionTime(forAnalyzerTime: t) } }
     }
 
     private static func run(_ source: AsyncStream<TimedBuffer>, speaker: Speaker, locale: Locale,
@@ -101,8 +99,8 @@ final class AppleSTTProvider: STTProvider, @unchecked Sendable {
         for await item in source {
             if failure.value != nil { break }
             guard let buffer = convert(item.buffer, to: target, using: &converter), buffer.frameLength > 0 else { continue }
-            let start = clock.start(sessionTime: item.time, frames: Int(buffer.frameLength), sampleRate: buffer.format.sampleRate)
-            inputContinuation.yield(AnalyzerInput(buffer: buffer, bufferStartTime: CMTime(seconds: start, preferredTimescale: CMTimeScale(AnalyzerClock.timescale))))
+            clock.note(sessionTime: item.time, duration: Double(buffer.frameLength) / buffer.format.sampleRate)
+            inputContinuation.yield(AnalyzerInput(buffer: buffer))
         }
         inputContinuation.finish()
         if failure.value == nil { try await analyzer.finalizeAndFinishThroughEndOfInput() }
