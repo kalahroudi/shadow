@@ -11,6 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: macos-26
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Build
@@ -19,9 +20,9 @@ jobs:
         run: swift test
       - name: Signing script test (stubbed codesign and security)
         run: scripts/test-signing-stubs.sh
-      - name: Bundle (ad-hoc signed) and self-test
+      - name: Bundle (explicit ad-hoc fallback) and self-test
         run: |
-          scripts/bundle.sh 0.0.0-ci
+          SIGNING_IDENTITY=- scripts/bundle.sh 0.0.0-ci
           PLIST=dist/Shadow.app/Contents/Info.plist
           COMMIT="$(/usr/libexec/PlistBuddy -c 'Print :ShadowCommit' "$PLIST")"
           REPO="$(/usr/libexec/PlistBuddy -c 'Print :ShadowRepo' "$PLIST")"
@@ -33,3 +34,8 @@ jobs:
           echo "$OUT"
           test "$OUT" = "ok $COMMIT"
           dist/Shadow.app/Contents/MacOS/shadow-mcp --version
+      - name: Check designated requirement (ad-hoc fallback)
+        run: scripts/check-signing.sh --adhoc-fallback dist/Shadow.app
+      - name: Signing shell test (throwaway keychain)
+        timeout-minutes: 10
+        run: scripts/test-signing.sh

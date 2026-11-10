@@ -10,6 +10,7 @@ set -euo pipefail
 
 NAME="Shadow Signing"
 OPENSSL=/usr/bin/openssl   # LibreSSL: its p12 files import cleanly with `security`
+. "$(dirname "$0")/lib-timeout.sh"
 KEYCHAIN="${SIGNING_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}"
 EXPORT_P12=""
 
@@ -21,7 +22,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-list() { security find-identity "$@" -p codesigning "$KEYCHAIN" 2>/dev/null | grep "\"$NAME\"" || true; }
+list() { run_t 30 security find-identity "$@" -p codesigning "$KEYCHAIN" 2>/dev/null | grep "\"$NAME\"" || true; }
 
 report() {
   local line sha
@@ -59,31 +60,45 @@ keyUsage = critical,digitalSignature
 extendedKeyUsage = critical,codeSigning
 CNF
 
-"$OPENSSL" req -x509 -newkey rsa:2048 -nodes -keyout "$WORK/key.pem" -out "$WORK/cert.pem" \
+run_t 30 "$OPENSSL" req -x509 -newkey rsa:2048 -nodes -keyout "$WORK/key.pem" -out "$WORK/cert.pem" \
   -days 7300 -config "$WORK/cert.cnf" 2>/dev/null
 
 # Export first: if it fails nothing has been added to the keychain, so the run can simply be repeated.
 if [ -n "$EXPORT_P12" ]; then
-  P12_PW="$("$OPENSSL" rand -hex 16)"
-  PW_ENV="$P12_PW" "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
+  P12_PW="$(run_t 30 "$OPENSSL" rand -hex 16)"
+  PW_ENV="$P12_PW" run_t 30 "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
     -out "$EXPORT_P12" -passout env:PW_ENV
   chmod 600 "$EXPORT_P12"
 fi
 
 # Import through a p12 with a throwaway password that is never printed.
-IMPORT_PW="$("$OPENSSL" rand -hex 16)"
-PW_ENV="$IMPORT_PW" "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
+IMPORT_PW="$(run_t 30 "$OPENSSL" rand -hex 16)"
+PW_ENV="$IMPORT_PW" run_t 30 "$OPENSSL" pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
   -out "$WORK/import.p12" -passout env:PW_ENV
 # -T limits access to codesign; no -A, so other apps cannot use the key.
-security import "$WORK/import.p12" -k "$KEYCHAIN" -P "$IMPORT_PW" -T /usr/bin/codesign >/dev/null
+run_t 60 security import "$WORK/import.p12" -k "$KEYCHAIN" -P "$IMPORT_PW" -T /usr/bin/codesign >/dev/null
+# With the keychain password (SIGNING_KEYCHAIN_PASSWORD, for throwaway/CI keychains) allow codesign to use the key
+# without a GUI prompt, which would hang a headless runner.
+if [ -n "${SIGNING_KEYCHAIN_PASSWORD:-}" ]; then
+  run_t 60 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$SIGNING_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+fi
 
 # Trust is only needed if codesign refuses the identity. Test with a throwaway binary.
-SHA="$("$OPENSSL" x509 -in "$WORK/cert.pem" -noout -fingerprint -sha1 | sed 's/.*=//;s/://g' | tr 'A-F' 'a-f')"
+SHA="$(run_t 30 "$OPENSSL" x509 -in "$WORK/cert.pem" -noout -fingerprint -sha1 | sed 's/.*=//;s/://g' | tr 'A-F' 'a-f')"
 cp /usr/bin/true "$WORK/t"   # no compiler needed
-if ! codesign --force --keychain "$KEYCHAIN" --sign "$SHA" "$WORK/t" >/dev/null 2>&1; then
+if ! PROBE="$(run_t 60 codesign --force --keychain "$KEYCHAIN" --sign "$SHA" "$WORK/t" 2>&1)"; then
+  echo "$PROBE" >&2
+  { echo "--- diagnostics ($(sw_vers -productVersion 2>/dev/null))"; run_t 30 security find-identity -p codesigning "$KEYCHAIN" 2>&1
+    echo "valid only:"; run_t 30 security find-identity -v -p codesigning "$KEYCHAIN" 2>&1
+    echo "keychains:"; run_t 30 security list-keychains -d user 2>&1; echo "---"; } >&2 || true
   echo "codesign did not accept the new identity; marking it trusted for code signing (current user only)..."
-  security add-trusted-cert -p codeSign -k "$KEYCHAIN" "$WORK/cert.pem"
-  codesign --force --keychain "$KEYCHAIN" --sign "$SHA" "$WORK/t" >/dev/null
+  # add-trusted-cert raises a GUI authorization dialog: never in CI or without a terminal, where nobody can answer it.
+  if [ -n "${CI:-}" ] || [ ! -t 0 ]; then
+    echo "error: codesign rejected the new identity and trusting it needs an interactive authorization; run this script in a terminal." >&2
+    exit 4
+  fi
+  run_t 120 security add-trusted-cert -p codeSign -k "$KEYCHAIN" "$WORK/cert.pem"
+  run_t 60 codesign --force --keychain "$KEYCHAIN" --sign "$SHA" "$WORK/t" >/dev/null
 fi
 
 echo "Created \"$NAME\" in $KEYCHAIN"

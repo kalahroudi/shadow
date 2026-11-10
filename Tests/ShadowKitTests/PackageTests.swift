@@ -227,12 +227,90 @@ final class PackageTests: XCTestCase {
     func testReleaseWorkflow() throws {
         let rel = try repoFile(".github/workflows/release.yml")
         for needle in ["tags:", "v*.*.*", "gh release create", "SHA256SUMS", "APP_REPO=$GITHUB_REPOSITORY", "scripts/bundle.sh",
-                       "contents: write", "swift test", "hdiutil create", "ad-hoc"] {
+                       "contents: write", "swift test", "hdiutil create", "ad-hoc", "SIGNING_P12_BASE64", "SIGNING_P12_PASSWORD",
+                       "set-key-partition-list", "::add-mask::", "if: always()", "security delete-keychain",
+                       "will reset on every update", "Open once"] {
             XCTAssertTrue(rel.contains(needle), needle)
         }
-        XCTAssertTrue(rel.contains("export SIGNING_IDENTITY="), "bundle.sh reads SIGNING_IDENTITY, not the old name")
-        XCTAssertFalse(rel.contains("export SIGN_IDENTITY="))
+        XCTAssertTrue(rel.contains("SIGNING_IDENTITY: ${{ steps.sign.outputs.identity }}"), "bundle.sh reads SIGNING_IDENTITY, not the old name")
+        XCTAssertFalse(rel.contains("SIGN_IDENTITY="))
+        XCTAssertFalse(rel.contains("SIGN_IDENTITY:"))
         XCTAssertTrue(rel.contains("secrets.SIGN_IDENTITY") || rel.contains("secrets.DEVELOPER_ID"), "signing is secret-gated")
+        XCTAssertFalse(rel.contains("set -x"))
+        XCTAssertTrue(rel.contains("falling back to an ad-hoc build"), "an unusable self-signed identity must not fail the release")
+    }
+
+    /// R15: secrets reach only the import and notarize steps, never Build, Test, Bundle or Publish.
+    func testReleaseSecretsAreOnlyInImportAndNotarizeSteps() throws {
+        let rel = try repoFile(".github/workflows/release.yml")
+        let steps = rel.components(separatedBy: "\n      - ")
+        var seen = 0
+        for step in steps where step.contains("secrets.") {
+            seen += 1
+            let name = step.prefix { $0 != "\n" }
+            XCTAssertTrue(name.contains("Import signing certificate") || name.contains("Notarize"), "secrets in step: \(name)")
+        }
+        XCTAssertEqual(seen, 2)
+        XCTAssertFalse(try repoFile(".github/workflows/ci.yml").contains("secrets."))
+    }
+
+    /// Fork PRs must never reach secrets: CI has read-only permissions and no pull_request_target; release runs only on tags/dispatch.
+    func testWorkflowTriggersAndPermissionsAreLeastPrivilege() throws {
+        let ci = try repoFile(".github/workflows/ci.yml")
+        XCTAssertTrue(ci.contains("contents: read"))
+        XCTAssertFalse(ci.contains("pull_request_target"))
+        XCTAssertFalse(ci.contains("contents: write"))
+        let rel = try repoFile(".github/workflows/release.yml")
+        XCTAssertFalse(rel.contains("pull_request"))
+        XCTAssertTrue(rel.contains("^v(0|[1-9][0-9]*)"), "tag is validated as semver")
+        // The keychain cleanup comes after the import step and always runs.
+        let steps = rel.components(separatedBy: "\n      - ")
+        let importIdx = try XCTUnwrap(steps.firstIndex { $0.hasPrefix("name: Import signing certificate") })
+        let cleanIdx = try XCTUnwrap(steps.firstIndex { $0.hasPrefix("name: Remove signing keychain") })
+        XCTAssertGreaterThan(cleanIdx, importIdx)
+        XCTAssertTrue(steps[cleanIdx].contains("if: always()"))
+    }
+
+    func testReadmeHasNoStaleSigningWording() throws {
+        let readme = try repoFile("README.md")
+        XCTAssertFalse(readme.contains("SIGN_IDENTITY"), "stale pre-SIGNING_IDENTITY name")
+        XCTAssertFalse(readme.contains("planned follow-ups.") && readme.contains("signing releases with the self-signed identity are planned"))
+        XCTAssertTrue(readme.contains("scripts/reset-permissions.sh"))
+    }
+
+    func testCIRunsDRCheckAndSigningShellTest() throws {
+        let ci = try repoFile(".github/workflows/ci.yml")
+        XCTAssertTrue(ci.contains("check-signing.sh --adhoc-fallback"))
+        XCTAssertTrue(ci.contains("scripts/test-signing.sh"))
+        XCTAssertTrue(ci.contains("timeout-minutes:"), "a hung keychain prompt must fail CI, not run for hours")
+        XCTAssertTrue(try repoFile(".github/workflows/release.yml").contains("timeout-minutes:"))
+        XCTAssertTrue(try repoFile("scripts/test-signing.sh").contains("SIGNING_KEYCHAIN_PASSWORD"), "headless keychain needs the partition list before codesign")
+        XCTAssertTrue(try repoFile("scripts/make-signing-identity.sh").contains("SIGNING_KEYCHAIN_PASSWORD"))
+        XCTAssertTrue(ci.contains("timeout-minutes: 20") && ci.contains("timeout-minutes: 10"))
+        // Every keychain/codesign call in the signing scripts goes through the timeout helper; add-trusted-cert never runs in CI.
+        for path in ["scripts/test-signing.sh", "scripts/make-signing-identity.sh", "scripts/sign-app.sh"] {
+            XCTAssertTrue(try repoFile(path).contains("lib-timeout.sh"), path)
+        }
+        let make = try repoFile("scripts/make-signing-identity.sh")
+        XCTAssertTrue(make.contains("[ -n \"${CI:-}\" ]"), "add-trusted-cert must be refused in CI")
+        XCTAssertTrue(try repoFile("scripts/test-signing.sh").contains("SKIPPED: no usable keychain"))
+    }
+
+    func testCheckSigningScript() throws {
+        let check = try repoFile("scripts/check-signing.sh")
+        for needle in ["grants will persist", "grants will reset", "--adhoc-fallback", "codesign -d -r-"] {
+            XCTAssertTrue(check.contains(needle), needle)
+        }
+    }
+
+    func testOnlyOneBundleIDInScriptsAndWorkflows() throws {
+        for path in ["scripts/bundle.sh", "scripts/sign-app.sh", "scripts/check-signing.sh", "scripts/test-signing.sh",
+                     ".github/workflows/ci.yml", ".github/workflows/release.yml"] {
+            let text = try repoFile(path)
+            for token in text.components(separatedBy: CharacterSet(charactersIn: "\"' \n$")) where token.hasPrefix("com.") && !token.hasPrefix("com.apple.") {
+                XCTAssertEqual(token, "com.kalahroudi.shadow", "\(path): \(token)")
+            }
+        }
     }
 
     func testPagesWorkflowPublishesDocs() throws {
@@ -245,7 +323,8 @@ final class PackageTests: XCTestCase {
         let readme = try repoFile("README.md")
         for needle in ["## Cutting a release", "## How updates work", "Local-only", "SHA256SUMS", "Shadow.previous.app", "right-click",
                        "Homebrew cask", "notarization", "## Why signing matters / permissions", "make-signing-identity.sh",
-                       "not notarized", "right-click", "untested", "Developer ID", "SIGNING_IDENTITY"] {
+                       "not notarized", "right-click", "untested", "Developer ID", "SIGNING_IDENTITY", "check-signing.sh",
+                       "SIGNING_P12_BASE64", "if: always()"] {
             XCTAssertTrue(readme.contains(needle), needle)
         }
         XCTAssertFalse(readme.contains("no release build yet"))

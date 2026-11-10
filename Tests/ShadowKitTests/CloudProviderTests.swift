@@ -229,13 +229,16 @@ final class CloudProviderTests: XCTestCase {
     }
 
     func testTurningLocalOnlyOnEndsAnInFlightCloudStream() async throws {
-        let flag = LockedFlag()
+        // Local-only flips from the provider's own checks, not from the consumer: the second chunk is already buffered, so a
+        // consumer-side flip races with it and the open-ended stream then never finishes. Checks: two before delivery (key check and open), one for the
+        // first chunk (still off, so "a" is delivered), then on for the second chunk.
+        let checks = CallCounter()
         let chunk = Data(Self.ev(#"{"type":"content_block_delta","delta":{"type":"text_delta","text":"a"}}"#).utf8)
         let t = FakeHTTPTransport(open: [.ok(status: 200, chunks: [chunk, chunk], keepOpen: true)])
-        let p = CloudProvider(kind: .anthropic, transport: t, secrets: try store(.anthropic), localOnly: { flag.value })
+        let p = CloudProvider(kind: .anthropic, transport: t, secrets: try store(.anthropic), localOnly: { checks.next() > 3 })
         var got: [String] = [], failure: Error?
         do {
-            for try await d in p.stream(req) { got.append(d); flag.value = true }   // Local-only turns on after the first piece
+            for try await d in p.stream(req) { got.append(d) }
         } catch { failure = error }
         XCTAssertEqual(got, ["a"])
         XCTAssertEqual((failure as? UserFacingError)?.message, LocalOnlyPolicy.message)
@@ -258,6 +261,11 @@ final class CloudProviderTests: XCTestCase {
         for id in [OnDeviceProvider.providerID, OpenAICompatProvider.providerID, ClaudeCLIProvider.providerID] { XCTAssertFalse(CloudKind.isCloud(providerID: id)) }
         XCTAssertFalse(OpenAICompatProvider().isCloud)
     }
+}
+
+final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock(); private var n = 0
+    func next() -> Int { lock.withLock { n += 1; return n } }
 }
 
 final class LockedFlag: @unchecked Sendable {

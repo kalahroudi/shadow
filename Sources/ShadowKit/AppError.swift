@@ -13,7 +13,12 @@ public struct UserFacingError: LocalizedError {
 /// The technical record. Users never see this; support / agents read it from `AppLog.fileURL` or Console.app.
 public enum AppLog {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "app", category: "app")
-    public static var fileURL: URL { AppPaths().root.appendingPathComponent("app.log") }
+    /// Under XCTest the log goes to a temp dir so tests never write into the user's real Application Support log.
+    public static var fileURL: URL {
+        let underTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil
+        let root = underTest ? FileManager.default.temporaryDirectory.appendingPathComponent("shadow-tests", isDirectory: true) : nil
+        return AppPaths(root: root).root.appendingPathComponent("app.log")
+    }
 
     public static func error(_ error: Error, context: String) {
         let detail = String(reflecting: error)   // type + payload, not just localizedDescription

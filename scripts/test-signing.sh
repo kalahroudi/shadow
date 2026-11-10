@@ -6,34 +6,47 @@
 # keychain search list and login keychain are never modified. Usage: scripts/test-signing.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/lib-timeout.sh
+exec </dev/null   # nothing here may ever wait for input
 
 TMP="$(mktemp -d)"
 KC="$TMP/shadow-test.keychain-db"
 KC_PW="$(uuidgen)"
-LIST_BEFORE="$(security list-keychains -d user)"
+LIST_BEFORE="$(run_t 30 security list-keychains -d user)"
 FAILED=0
 
 cleanup() {
-  security delete-keychain "$KC" >/dev/null 2>&1 || true
+  run_t 30 security delete-keychain "$KC" >/dev/null 2>&1 || true
   rm -rf "$TMP"
 }
 trap cleanup EXIT
 
 fail() { echo "FAIL: $*" >&2; FAILED=1; }
-dr_of() { codesign -d -r- "$1" 2>/dev/null | sed -n 's/^designated => //p'; }
-cdhash_of() { codesign -dvvv "$1" 2>&1 | sed -n 's/^CDHash=//p'; }
+dr_of() { run_t 30 codesign -d -r- "$1" 2>/dev/null | sed -n 's/^designated => //p'; }
+cdhash_of() { run_t 30 codesign -dvvv "$1" 2>&1 | sed -n 's/^CDHash=//p'; }
 
-security create-keychain -p "$KC_PW" "$KC"
-security set-keychain-settings "$KC"
-security unlock-keychain -p "$KC_PW" "$KC"
-SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh
+skip() {
+  echo "SKIPPED: no usable keychain in this environment ($1). The signing shell test did NOT run." >&2
+  [ -z "${GITHUB_ACTIONS:-}" ] || echo "::warning::test-signing.sh SKIPPED: no usable keychain in this environment ($1); this is not a pass"
+  exit 0
+}
+# No -t/-l: the throwaway keychain never auto-locks. If it cannot be created and unlocked without a dialog, skip loudly.
+run_t 30 security create-keychain -p "$KC_PW" "$KC" || skip "create-keychain failed"
+run_t 30 security set-keychain-settings "$KC" || skip "set-keychain-settings failed"
+run_t 30 security unlock-keychain -p "$KC_PW" "$KC" || skip "unlock-keychain failed"
+# A freshly created self-signed identity is untrusted; codesign refuses it ("no identity found") until trust is added, which needs
+# a GUI authorization. make-signing-identity.sh exits 4 when it cannot do that (CI / no terminal): skip loudly, never hang.
+MAKE_RC=0
+SIGNING_KEYCHAIN="$KC" SIGNING_KEYCHAIN_PASSWORD="$KC_PW" scripts/make-signing-identity.sh || MAKE_RC=$?
+[ "$MAKE_RC" != 4 ] || skip "codesign rejects a new self-signed identity until it is trusted, which needs an interactive authorization"
+[ "$MAKE_RC" = 0 ] || { echo "FAIL: make-signing-identity.sh exited $MAKE_RC" >&2; exit 1; }
 # Idempotent: a second run creates nothing, and asking it to export a key it no longer has is an error.
 SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh >/dev/null || fail "second make-signing-identity run failed"
-[ "$(security find-certificate -a -c "Shadow Signing" "$KC" | grep -c '"labl"')" = 1 ] || fail "Shadow Signing was duplicated"
+[ "$(run_t 30 security find-certificate -a -c "Shadow Signing" "$KC" | grep -c '"labl"')" = 1 ] || fail "Shadow Signing was duplicated"
 if SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh --export-p12 "$TMP/x.p12" >/dev/null 2>&1; then
   fail "--export-p12 on an existing identity should fail"
 fi
-security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PW" "$KC" >/dev/null
+run_t 60 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PW" "$KC" >/dev/null
 
 build() { # <name> <version> [env assignments...]
   local name="$1" version="$2"; shift 2
@@ -47,7 +60,7 @@ build stable1 0.0.1-sign-test SIGNING_IDENTITY="Shadow Signing"
 build stable2 0.0.2-sign-test SIGNING_IDENTITY="Shadow Signing"
 build auto 0.0.5-sign-test                       # no SIGNING_IDENTITY: picks Shadow Signing from the keychain
 KC_EMPTY="$TMP/empty.keychain-db"
-security create-keychain -p "$KC_PW" "$KC_EMPTY"
+run_t 30 security create-keychain -p "$KC_PW" "$KC_EMPTY"
 build fallback 0.0.6-sign-test SIGNING_KEYCHAIN="$KC_EMPTY"   # nothing usable: ad-hoc with a warning, exit 0
 build adhoc1 0.0.3-sign-test SIGNING_IDENTITY=-
 build adhoc2 0.0.4-sign-test SIGNING_IDENTITY=-
@@ -59,7 +72,7 @@ A1="$TMP/adhoc1/Shadow.app"; A2="$TMP/adhoc2/Shadow.app"
 grep -q "WARNING: no stable signing identity" "$TMP/fallback.log" || fail "ad-hoc fallback did not warn loudly"
 case "$(dr_of "$TMP/fallback/Shadow.app")" in 'identifier "com.kalahroudi.shadow"') ;; *) fail "fallback is not ad-hoc" ;; esac
 for app in "$S1" "$S2" "$TMP/auto/Shadow.app"; do
-  codesign -d --entitlements - "$app" 2>&1 | grep -q "com.apple.security.device.audio-input" || fail "entitlements missing from $app"
+  run_t 30 codesign -d --entitlements - "$app" 2>&1 | grep -q "com.apple.security.device.audio-input" || fail "entitlements missing from $app"
 done
 
 echo "stable DR 1: $(dr_of "$S1")"
@@ -74,7 +87,7 @@ case "$(dr_of "$A1")" in 'identifier "com.kalahroudi.shadow"') ;; *) fail "ad-ho
 cleanup
 trap - EXIT
 [ ! -e "$KC" ] || fail "throwaway keychain still exists"
-[ "$(security list-keychains -d user)" = "$LIST_BEFORE" ] || fail "keychain search list changed"
+[ "$(run_t 30 security list-keychains -d user)" = "$LIST_BEFORE" ] || fail "keychain search list changed"
 
 if [ "$FAILED" -ne 0 ]; then exit 1; fi
 echo "test-signing: ok"
