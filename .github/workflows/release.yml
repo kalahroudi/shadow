@@ -56,7 +56,6 @@ jobs:
           elif [ -n "$SIGNING_P12_BASE64" ] && [ -n "$SIGNING_P12_PASSWORD" ]; then
             KIND=selfsigned; P12_B64="$SIGNING_P12_BASE64"; P12_PW="$SIGNING_P12_PASSWORD"
           fi
-          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
           if [ "$KIND" != adhoc ]; then
             KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
             KEYCHAIN_PASSWORD="$(uuidgen)"
@@ -68,10 +67,25 @@ jobs:
             security set-keychain-settings -lut 21600 "$KEYCHAIN"
             security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
             security import "$RUNNER_TEMP/cert.p12" -P "$P12_PW" -T /usr/bin/codesign -t cert -f pkcs12 -k "$KEYCHAIN" >/dev/null
-            security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
             security list-keychains -d user -s "$KEYCHAIN" $(cat "$RUNNER_TEMP/keychains.txt")
+            if [ "$KIND" = selfsigned ]; then
+              # An imported self-signed certificate is untrusted and codesign refuses it ("no identity found"). Trust it on this
+              # ephemeral runner (non-interactive sudo, never a GUI prompt), then probe. If it still cannot sign, ship ad-hoc.
+              LIMIT='alarm shift; exec @ARGV or exit 127'
+              P12_PW="$P12_PW" /usr/bin/openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -clcerts -nokeys -passin env:P12_PW -out "$RUNNER_TEMP/cert.pem" \
+                && perl -e "$LIMIT" 60 sudo -n security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem" \
+                || echo "::warning::could not mark the Shadow Signing certificate as trusted for code signing"
+              cp /usr/bin/true "$RUNNER_TEMP/probe"
+              if ! perl -e "$LIMIT" 60 codesign --force --keychain "$KEYCHAIN" --sign "Shadow Signing" "$RUNNER_TEMP/probe" >/dev/null 2>&1; then
+                echo "::warning::codesign cannot use the Shadow Signing identity on this runner; falling back to an ad-hoc build"
+                KIND=adhoc
+              fi
+              rm -f "$RUNNER_TEMP/probe" "$RUNNER_TEMP/cert.pem"
+            fi
             rm -f "$RUNNER_TEMP/cert.p12"
           fi
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
           if [ "$KIND" = developerid ]; then
             echo "identity=$SIGN_IDENTITY_SECRET" >> "$GITHUB_OUTPUT"
           elif [ "$KIND" = selfsigned ]; then
@@ -126,4 +140,4 @@ jobs:
             if [ -f "$RUNNER_TEMP/keychains.txt" ]; then security list-keychains -d user -s $(cat "$RUNNER_TEMP/keychains.txt") || true; fi
             security delete-keychain "$KEYCHAIN" || true
           fi
-          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/keychains.txt"
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/cert.pem" "$RUNNER_TEMP/probe" "$RUNNER_TEMP/keychains.txt"

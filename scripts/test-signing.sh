@@ -34,7 +34,12 @@ skip() {
 run_t 30 security create-keychain -p "$KC_PW" "$KC" || skip "create-keychain failed"
 run_t 30 security set-keychain-settings "$KC" || skip "set-keychain-settings failed"
 run_t 30 security unlock-keychain -p "$KC_PW" "$KC" || skip "unlock-keychain failed"
-SIGNING_KEYCHAIN="$KC" SIGNING_KEYCHAIN_PASSWORD="$KC_PW" scripts/make-signing-identity.sh
+# A freshly created self-signed identity is untrusted; codesign refuses it ("no identity found") until trust is added, which needs
+# a GUI authorization. make-signing-identity.sh exits 4 when it cannot do that (CI / no terminal): skip loudly, never hang.
+MAKE_RC=0
+SIGNING_KEYCHAIN="$KC" SIGNING_KEYCHAIN_PASSWORD="$KC_PW" scripts/make-signing-identity.sh || MAKE_RC=$?
+[ "$MAKE_RC" != 4 ] || skip "codesign rejects a new self-signed identity until it is trusted, which needs an interactive authorization"
+[ "$MAKE_RC" = 0 ] || { echo "FAIL: make-signing-identity.sh exited $MAKE_RC" >&2; exit 1; }
 # Idempotent: a second run creates nothing, and asking it to export a key it no longer has is an error.
 SIGNING_KEYCHAIN="$KC" scripts/make-signing-identity.sh >/dev/null || fail "second make-signing-identity run failed"
 [ "$(run_t 30 security find-certificate -a -c "Shadow Signing" "$KC" | grep -c '"labl"')" = 1 ] || fail "Shadow Signing was duplicated"

@@ -237,6 +237,7 @@ final class PackageTests: XCTestCase {
         XCTAssertFalse(rel.contains("SIGN_IDENTITY:"))
         XCTAssertTrue(rel.contains("secrets.SIGN_IDENTITY") || rel.contains("secrets.DEVELOPER_ID"), "signing is secret-gated")
         XCTAssertFalse(rel.contains("set -x"))
+        XCTAssertTrue(rel.contains("falling back to an ad-hoc build"), "an unusable self-signed identity must not fail the release")
     }
 
     /// R15: secrets reach only the import and notarize steps, never Build, Test, Bundle or Publish.
