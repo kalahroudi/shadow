@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- Not sandboxed. Used only when SIGN_IDENTITY is set (hardened runtime); ad hoc builds ignore it. -->
+  <!-- Not sandboxed. Applied to the app for every stable signing identity (self-signed or Developer ID); ad-hoc builds ignore it. -->
   <key>com.apple.security.device.audio-input</key><true/>
 </dict>
 </plist>

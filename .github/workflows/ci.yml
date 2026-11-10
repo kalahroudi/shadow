@@ -17,6 +17,8 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
+      - name: Signing script test (stubbed codesign and security)
+        run: scripts/test-signing-stubs.sh
       - name: Bundle (ad-hoc signed) and self-test
         run: |
           scripts/bundle.sh 0.0.0-ci

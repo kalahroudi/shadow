@@ -1,7 +1,15 @@
 #!/bin/bash
 # Builds Shadow.app into ./dist (or $DIST_DIR). Usage: scripts/bundle.sh [version]
+#
+# Signing identity (see README "Why signing matters / permissions"):
+#   SIGNING_IDENTITY   a certificate name or SHA-1, or "-" for an explicit ad-hoc build. If unset, a
+#                      "Developer ID Application" identity is used, else "Shadow Signing"
+#                      (scripts/make-signing-identity.sh), else ad-hoc with a loud warning.
+#   SIGNING_KEYCHAIN   optional keychain to search and sign from (used by scripts/test-signing.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+BUNDLE_ID="com.kalahroudi.shadow"
 
 VERSION="${1:-0.1.0}"
 APP="${DIST_DIR:-dist}/Shadow.app"
@@ -31,7 +39,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
   <key>CFBundleName</key><string>Shadow</string>
   <key>CFBundleDisplayName</key><string>Shadow</string>
-  <key>CFBundleIdentifier</key><string>com.kalahroudi.shadow</string>
+  <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleExecutable</key><string>Shadow</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -52,15 +60,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc signed by default. With SIGN_IDENTITY set to a "Developer ID Application: ..." identity it is signed
-# for distribution with the hardened runtime.
-if [ "${SIGN_IDENTITY:--}" = "-" ]; then
-  SIGN_FLAGS=(--force --sign -)
-else
-  SIGN_FLAGS=(--force --timestamp --options runtime --entitlements scripts/Shadow.entitlements --sign "$SIGN_IDENTITY")
-fi
-codesign "${SIGN_FLAGS[@]}" "$APP/Contents/MacOS/shadow-mcp"
-codesign "${SIGN_FLAGS[@]}" "$APP"
-codesign --verify --strict "$APP"
+scripts/sign-app.sh "$APP"
 
 echo "Built $APP"

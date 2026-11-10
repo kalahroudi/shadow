@@ -3,10 +3,14 @@ import XCTest
 
 /// Guards the scaffold decisions of milestone 1 (R1, R25): they live in files, so the tests read the files.
 final class PackageTests: XCTestCase {
-    private func repoFile(_ path: String) throws -> String {
+    private func repoRoot() -> URL {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { url.deleteLastPathComponent() }   // Tests/ShadowKitTests/<file> -> repo root
-        return try String(contentsOf: url.appendingPathComponent(path), encoding: .utf8)
+        return url
+    }
+
+    private func repoFile(_ path: String) throws -> String {
+        try String(contentsOf: repoRoot().appendingPathComponent(path), encoding: .utf8)
     }
 
     func testPackageDeclaresMacOS26Swift6AndNoDependencies() throws {
@@ -24,6 +28,9 @@ final class PackageTests: XCTestCase {
             XCTAssertTrue(script.contains("<key>\(key)</key>"), key)
         }
         XCTAssertTrue(script.contains("<string>26.0</string>"))
+        for key in ["NSAppleEventsUsageDescription", "NSAccessibilityUsageDescription", "NSInputMonitoringUsageDescription"] {
+            XCTAssertFalse(script.contains(key), "\(key) is not needed")
+        }
     }
 
     func testUsageDescriptionsHaveNonEmptyStrings() throws {
@@ -123,6 +130,44 @@ final class PackageTests: XCTestCase {
         }
     }
 
+    func testBundleScriptSignsWithStableIdentityAndChecksDR() throws {
+        let bundle = try repoFile("scripts/bundle.sh")
+        XCTAssertEqual(bundle.components(separatedBy: "com.kalahroudi.shadow").count - 1, 1, "bundle ID is defined once in bundle.sh")
+        XCTAssertTrue(bundle.contains("BUNDLE_ID=\"com.kalahroudi.shadow\""))
+        XCTAssertTrue(bundle.contains("scripts/sign-app.sh \"$APP\""))
+        let script = try repoFile("scripts/sign-app.sh")
+        for needle in ["SIGNING_IDENTITY", "Developer ID Application", "Shadow Signing", "certificate leaf = H",
+                       "certificate leaf[subject.OU]", "anchor apple generic and identifier", "--options runtime",
+                       "--entitlements scripts/Shadow.entitlements", "--verify --deep --strict", "codesign -d -r-",
+                       "cdhash (not the identity)", "RESET", "security find-certificate", "x509 -noout -subject"] {
+            XCTAssertTrue(script.contains(needle), needle)
+        }
+        let stubs = try repoFile("scripts/test-signing-stubs.sh")
+        XCTAssertTrue(stubs.contains("R6=") && stubs.contains("R5=") && stubs.contains("R8="), "exact DR strings are asserted")
+    }
+
+    func testNoOldSigningVariableRemains() throws {
+        for path in ["scripts/bundle.sh", "scripts/sign-app.sh", "scripts/make-signing-identity.sh", "scripts/test-signing.sh", "scripts/Shadow.entitlements", "README.md"] {
+            XCTAssertFalse(try repoFile(path).contains("SIGN_IDENTITY"), path)
+        }
+    }
+
+    func testSigningScriptsExistAndAreSafe() throws {
+        let make = try repoFile("scripts/make-signing-identity.sh")
+        for needle in ["already exists", "--export-p12", "chmod 600", "-days 7300", "codeSigning", "-T /usr/bin/codesign"] {
+            XCTAssertTrue(make.contains(needle), needle)
+        }
+        XCTAssertFalse(make.contains(" -A "), "the key must not be open to every app")
+        let test = try repoFile("scripts/test-signing.sh")
+        for needle in ["trap cleanup EXIT", "delete-keychain", "SIGNING_KEYCHAIN", "list-keychains"] {
+            XCTAssertTrue(test.contains(needle), needle)
+        }
+        let fm = FileManager.default
+        for name in ["bundle.sh", "make-signing-identity.sh", "test-signing.sh"] {
+            XCTAssertTrue(fm.isExecutableFile(atPath: repoRoot().appendingPathComponent("scripts/\(name)").path), name)
+        }
+    }
+
     func testNoAgentsOrOldUpdateCodeRemains() throws {
         let fm = FileManager.default
         var root = URL(fileURLWithPath: #filePath)
@@ -171,6 +216,8 @@ final class PackageTests: XCTestCase {
                        "contents: write", "swift test", "hdiutil create", "ad-hoc"] {
             XCTAssertTrue(rel.contains(needle), needle)
         }
+        XCTAssertTrue(rel.contains("export SIGNING_IDENTITY="), "bundle.sh reads SIGNING_IDENTITY, not the old name")
+        XCTAssertFalse(rel.contains("export SIGN_IDENTITY="))
         XCTAssertTrue(rel.contains("secrets.SIGN_IDENTITY") || rel.contains("secrets.DEVELOPER_ID"), "signing is secret-gated")
     }
 
@@ -183,7 +230,8 @@ final class PackageTests: XCTestCase {
     func testReadmeDocumentsReleaseAndUpdates() throws {
         let readme = try repoFile("README.md")
         for needle in ["## Cutting a release", "## How updates work", "Local-only", "SHA256SUMS", "Shadow.previous.app", "right-click",
-                       "Homebrew cask", "notarization"] {
+                       "Homebrew cask", "notarization", "## Why signing matters / permissions", "make-signing-identity.sh",
+                       "not notarized", "right-click", "untested", "Developer ID", "SIGNING_IDENTITY"] {
             XCTAssertTrue(readme.contains(needle), needle)
         }
         XCTAssertFalse(readme.contains("no release build yet"))
